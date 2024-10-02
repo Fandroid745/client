@@ -2,66 +2,17 @@ plugins {
     alias(libs.plugins.looker.android.application)
     alias(libs.plugins.looker.hilt.work)
     alias(libs.plugins.looker.lint)
+    alias(libs.plugins.kotlin.parcelize)
 }
 
 android {
     namespace = "com.looker.droidify"
     defaultConfig {
         vectorDrawables.useSupportLibrary = true
+    }
 
-        resourceConfigurations += mutableListOf(
-            /* locale list begin */
-            "ar",
-            "az",
-            "be",
-            "bg",
-            "bn",
-            "ca",
-            "cs",
-            "de",
-            "el",
-            "es",
-            "fa",
-            "fi",
-            "fr",
-            "gl",
-            "hi",
-            "hr",
-            "hu",
-            "ia",
-            "in",
-            "it",
-            "iw",
-            "ja",
-            "kn",
-            "ko",
-            "lt",
-            "lv",
-            "ml",
-            "nb-rNO",
-            "nl",
-            "nn",
-            "or",
-            "pa",
-            "pl",
-            "pt",
-            "pt-rBR",
-            "ro",
-            "ru",
-            "ryu",
-            "si",
-            "sl",
-            "sr",
-            "sv",
-            "tl",
-            "tr",
-            "uk",
-            "ur",
-            "vi",
-            "zh-rCN",
-            "zh-rTW"
-            /* locale list end */
-        )
+    androidResources {
+        generateLocaleConfig = true
     }
 
     sourceSets.forEach { source ->
@@ -118,6 +69,7 @@ android {
         }
     }
     buildFeatures {
+        resValues = true
         viewBinding = true
         buildConfig = true
     }
@@ -126,24 +78,28 @@ android {
 dependencies {
 
     modules(
-        Modules.coreModel,
+        Modules.coreDomain,
+        Modules.coreData,
         Modules.coreCommon,
         Modules.coreNetwork,
         Modules.coreDatastore,
-        Modules.installer
+        Modules.coreDI,
+        Modules.installer,
     )
 
     implementation(libs.android.material)
     implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.activity.ktx)
+    implementation(libs.androidx.activity)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.fragment.ktx)
-    implementation(libs.androidx.lifecycle.viewModel.ktx)
+    implementation(libs.androidx.lifecycle.viewModel)
     implementation(libs.androidx.recyclerview)
     implementation(libs.androidx.sqlite.ktx)
     implementation(libs.coil.kt)
     implementation(libs.kotlinx.datetime)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.jackson.core)
-    implementation(libs.zoomage)
+    implementation(libs.image.viewer)
+
+//    debugImplementation(libs.leakcanary)
 }

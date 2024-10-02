@@ -4,7 +4,6 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?colorSurface"
     tools:context="com.looker.droidify.ui.settings.SettingsFragment">
 
     <com.google.android.material.appbar.AppBarLayout
@@ -12,7 +11,7 @@
         style="?attr/appBarLayoutStyle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="?colorSurface"
+        android:background="?colorSurfaceContainer"
         app:elevation="0dp"
         app:liftOnScroll="false">
 
@@ -21,7 +20,7 @@
             style="?attr/toolbarStyle"
             android:layout_width="match_parent"
             android:layout_height="?actionBarSize"
-            android:background="?colorSurface"
+            android:background="?colorSurfaceContainer"
             android:elevation="0dp" />
     </com.google.android.material.appbar.AppBarLayout>
 
@@ -41,6 +40,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:paddingStart="@dimen/shape_margin_large"
+                android:paddingEnd="@dimen/shape_margin_large"
                 android:paddingTop="@dimen/shape_margin_large"
                 android:text="@string/prefs_personalization"
                 android:textAppearance="?textAppearanceHeadlineSmall"
@@ -76,6 +76,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:paddingStart="@dimen/shape_margin_large"
+                android:paddingEnd="@dimen/shape_margin_large"
                 android:text="@string/updates"
                 android:textAppearance="?textAppearanceHeadlineSmall"
                 android:textColor="?colorPrimary"
@@ -83,6 +84,10 @@
 
             <include
                 android:id="@+id/auto_sync"
+                layout="@layout/enum_type" />
+
+            <include
+                android:id="@+id/allow_background_work"
                 layout="@layout/enum_type" />
 
             <include
@@ -98,6 +103,10 @@
                 layout="@layout/switch_type" />
 
             <include
+                android:id="@+id/ignore_signature"
+                layout="@layout/switch_type" />
+
+            <include
                 android:id="@+id/incompatible_updates"
                 layout="@layout/switch_type" />
 
@@ -105,6 +114,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:paddingStart="@dimen/shape_margin_large"
+                android:paddingEnd="@dimen/shape_margin_large"
                 android:text="@string/proxy"
                 android:textAppearance="?textAppearanceHeadlineSmall"
                 android:textColor="?colorPrimary"
@@ -126,6 +136,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:paddingStart="@dimen/shape_margin_large"
+                android:paddingEnd="@dimen/shape_margin_large"
                 android:text="@string/install_types"
                 android:textAppearance="?textAppearanceHeadlineSmall"
                 android:textColor="?colorPrimary"
@@ -139,6 +150,33 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:paddingStart="@dimen/shape_margin_large"
+                android:paddingEnd="@dimen/shape_margin_large"
+                android:text="@string/import_export"
+                android:textAppearance="?textAppearanceHeadlineSmall"
+                android:textColor="?colorPrimary"
+                android:textStyle="bold" />
+
+            <include
+                android:id="@+id/export_settings"
+                layout="@layout/enum_type" />
+
+            <include
+                android:id="@+id/import_settings"
+                layout="@layout/enum_type" />
+
+            <include
+                android:id="@+id/export_repos"
+                layout="@layout/enum_type" />
+
+            <include
+                android:id="@+id/import_repos"
+                layout="@layout/enum_type" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="@dimen/shape_margin_large"
+                android:paddingEnd="@dimen/shape_margin_large"
                 android:text="@string/credits"
                 android:textAppearance="?textAppearanceHeadlineSmall"
                 android:textColor="?colorPrimary"

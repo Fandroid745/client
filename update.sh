@@ -4,6 +4,11 @@
 version=""
 changelog_directory="./metadata/en-US/changelogs"
 kotlin_file="./build-logic/structure/src/main/kotlin/DefaultConfig.kt"
+user_agent="./core/network/src/main/java/com/looker/network/Downloader.kt"
+
+# Pull commits from origin
+echo "Pulling commits from GitHub"
+git pull --rebase
 
 # Parse command-line arguments
 while [[ $# -gt 0 ]]; do
@@ -54,6 +59,7 @@ fi
 # Update the Kotlin file with new version code and name
 sed -i "s/const val versionCode = [0-9]*/const val versionCode = $version_code/" "$kotlin_file"
 sed -i "s/const val versionName = \"[^\"]*\"/const val versionName = \"$version_name\"/" "$kotlin_file"
+sed -i "s/internal const val USER_AGENT = \"[^\"]*\"/internal const val USER_AGENT = \"Droid-ify v$version_name\"/" "$user_agent"
 
 # Line ending to CRLF
 sed -i ':a;N;$!ba;s/\n/\r\n/g' "$kotlin_file"
@@ -72,7 +78,6 @@ code $changelog_file
 # Ask for confirmation before creating a Git tag
 read -p "Do you want to create a Git tag for version $git_tag? (y/n): " -r
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-  git pull --rebase
   git add -A
   git commit -m "Release $version_name"
   # Create a Git tag

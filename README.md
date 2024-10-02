@@ -1,10 +1,6 @@
 <div align="center">
 
-<img width="" src="app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png" alt="Droid-ify" align="center">
-
-# Droid-ify
-
-### A quick material F-Droid client.
+<img width="" src="metadata/en-US/images/featureGraphic.png" alt="Droid-ify" align="center">
 
 [![Github Stars](https://img.shields.io/github/stars/Iamlooker/Droid-ify?color=%2364f573&style=for-the-badge)](https://github.com/Iamlooker/Droid-ify/stargazers)
 [![Github License](https://img.shields.io/github/license/Iamlooker/Droid-ify?color=%2364f573&style=for-the-badge)](https://github.com/Iamlooker/Droid-ify/blob/master/COPYING)
@@ -23,7 +19,7 @@
 
 ## Screenshots
 
-<img src="metadata/en-US/images/phoneScreenshots/2.png" width="48%" /><img src="metadata/en-US/images/phoneScreenshots/1.png" width="48%" /><img src="metadata/en-US/images/phoneScreenshots/3.png" width="48%" /><img src="metadata/en-US/images/phoneScreenshots/4.png" width="48%" />
+<img src="metadata/en-US/images/phoneScreenshots/1.png" width="25%" /><img src="metadata/en-US/images/phoneScreenshots/2.png" width="25%" /><img src="metadata/en-US/images/phoneScreenshots/3.png" width="25%" /><img src="metadata/en-US/images/phoneScreenshots/4.png" width="25%" />
 
 ## Building and Installing
 1. **Install Android Studio**:

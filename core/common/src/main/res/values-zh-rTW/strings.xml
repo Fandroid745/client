@@ -218,4 +218,23 @@
     <string name="label_copy">複製</string>
     <string name="proxy_port_error_not_int">代理端口只能設定為整數</string>
     <string name="repository_not_found">未找到下列儲存庫</string>
+    <string name="import_settings_title">匯入設定</string>
+    <string name="import_export">匯入 / 匯出</string>
+    <string name="import_settings_DESC">從檔案中匯入設定和我的最愛</string>
+    <string name="export_settings_title">匯出設定</string>
+    <string name="export_repos_DESC">將所有軟體庫匯出至檔案</string>
+    <string name="import_repos_title">匯入軟體庫</string>
+    <string name="export_settings_DESC">將設定和我的最愛匯出至檔案</string>
+    <string name="export_repos_title">匯出軟體庫</string>
+    <string name="import_repos_DESC">從檔案中匯入所有軟體庫</string>
+    <string name="cannot_open_link">無法開啟連結</string>
+    <string name="has_tethered_network">綁定至特定網路服務</string>
+    <string name="require_background_access_DESC">為了正確執行背景同步，需要背景存取權限</string>
+    <string name="require_background_access">需要背景存取權限</string>
+    <string name="installation_failed">安裝失敗</string>
+    <string name="installation_failed_DESC">安裝 %s 失敗</string>
+    <string name="uninstalled_application">已解除安裝</string>
+    <string name="uninstalled_application_DESC">%s 已被解除安裝</string>
+    <string name="ignore_signature">忽略簽章</string>
+    <string name="ignore_signature_summary">安裝 apk 時忽略簽章驗證，適用於 LSPosed 或進階使用者</string>
 </resources>

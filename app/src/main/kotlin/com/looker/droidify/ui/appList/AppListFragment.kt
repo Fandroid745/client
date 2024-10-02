@@ -2,6 +2,7 @@ package com.looker.droidify.ui.appList
 
 import android.database.Cursor
 import android.os.Bundle
+import android.os.Parcelable
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -13,13 +14,14 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.looker.core.common.Scroller
 import com.looker.core.common.R as CommonR
 import com.looker.core.common.R.string as stringRes
 import com.looker.core.common.extension.dp
 import com.looker.core.common.extension.isFirstItemVisible
 import com.looker.core.common.extension.systemBarsMargin
 import com.looker.core.common.extension.systemBarsPadding
-import com.looker.core.model.ProductItem
+import com.looker.droidify.model.ProductItem
 import com.looker.droidify.database.CursorOwner
 import com.looker.droidify.databinding.RecyclerViewWithFabBinding
 import com.looker.droidify.utility.extension.screenActivity
@@ -35,6 +37,8 @@ class AppListFragment() : Fragment(), CursorOwner.Callback {
     private val binding get() = _binding!!
 
     companion object {
+        private const val STATE_LAYOUT_MANAGER = "layoutManager"
+
         private const val EXTRA_SOURCE = "source"
     }
 
@@ -61,6 +65,7 @@ class AppListFragment() : Fragment(), CursorOwner.Callback {
     private lateinit var recyclerView: RecyclerView
     private lateinit var recyclerViewAdapter: AppListAdapter
     private var shortAnimationDuration: Int = 0
+    private var layoutManagerState: Parcelable? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -100,7 +105,11 @@ class AppListFragment() : Fragment(), CursorOwner.Callback {
             } else {
                 text = ""
                 setIconResource(CommonR.drawable.arrow_up)
-                setOnClickListener { recyclerView.smoothScrollToPosition(0) }
+                setOnClickListener {
+                    val scroller = Scroller(requireContext())
+                    scroller.targetPosition = 0
+                    recyclerView.layoutManager?.startSmoothScroll(scroller)
+                }
                 alpha = 0f
                 isVisible = true
                 systemBarsMargin(16.dp)
@@ -122,6 +131,7 @@ class AppListFragment() : Fragment(), CursorOwner.Callback {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        layoutManagerState = savedInstanceState?.getParcelable(STATE_LAYOUT_MANAGER)
 
         updateRequest()
         viewLifecycleOwner.lifecycleScope.launch {
@@ -138,6 +148,12 @@ class AppListFragment() : Fragment(), CursorOwner.Callback {
                 }
             }
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        (layoutManagerState ?: recyclerView.layoutManager?.onSaveInstanceState())
+            ?.let { outState.putParcelable(STATE_LAYOUT_MANAGER, it) }
     }
 
     override fun onDestroyView() {
@@ -160,6 +176,10 @@ class AppListFragment() : Fragment(), CursorOwner.Callback {
                 Source.INSTALLED -> getString(stringRes.no_applications_installed)
                 Source.UPDATES -> getString(stringRes.all_applications_up_to_date)
             }
+        }
+        layoutManagerState?.let {
+            layoutManagerState = null
+            recyclerView.layoutManager?.onRestoreInstanceState(it)
         }
     }
 

@@ -6,18 +6,6 @@ plugins {
 
 android {
     namespace = "com.looker.core.data"
-
-    buildTypes {
-        release {
-            // TODO: Enable once using
-            isMinifyEnabled = false
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
-        }
-        create("alpha") {
-            initWith(getByName("debug"))
-            isMinifyEnabled = true
-        }
-    }
 }
 
 dependencies {
@@ -25,11 +13,11 @@ dependencies {
         Modules.coreCommon,
         Modules.coreDatabase,
         Modules.coreDatastore,
-        Modules.coreModel,
-        Modules.coreNetwork
+        Modules.coreDI,
+        Modules.coreDomain,
+        Modules.coreNetwork,
+        Modules.sync,
     )
 
     implementation(libs.kotlinx.coroutines.android)
-    implementation(libs.fdroid.index)
-    implementation(libs.fdroid.download)
 }

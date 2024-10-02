@@ -4,7 +4,12 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.view.*
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.view.WindowManager
+import androidx.activity.result.contract.ActivityResultContracts.CreateDocument
+import androidx.activity.result.contract.ActivityResultContracts.OpenDocument
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AlertDialog
@@ -12,36 +17,54 @@ import androidx.core.view.isVisible
 import androidx.core.widget.NestedScrollView
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
-import androidx.lifecycle.*
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.TextInputEditText
-import com.looker.core.common.BuildConfig as CommonBuildConfig
-import com.looker.core.common.R as CommonR
 import com.looker.core.common.SdkCheck
+import com.looker.core.common.extension.getColorFromAttr
 import com.looker.core.common.extension.homeAsUp
 import com.looker.core.common.extension.systemBarsPadding
 import com.looker.core.common.extension.updateAsMutable
+import com.looker.core.common.isIgnoreBatteryEnabled
+import com.looker.core.common.requestBatteryFreedom
 import com.looker.core.datastore.Settings
-import com.looker.core.datastore.extension.*
-import com.looker.core.datastore.model.*
+import com.looker.core.datastore.extension.autoSyncName
+import com.looker.core.datastore.extension.installerName
+import com.looker.core.datastore.extension.proxyName
+import com.looker.core.datastore.extension.themeName
+import com.looker.core.datastore.extension.toTime
+import com.looker.core.datastore.model.AutoSync
+import com.looker.core.datastore.model.InstallerType
+import com.looker.core.datastore.model.ProxyType
+import com.looker.core.datastore.model.Theme
 import com.looker.droidify.BuildConfig
 import com.looker.droidify.databinding.EnumTypeBinding
 import com.looker.droidify.databinding.SettingsPageBinding
 import com.looker.droidify.databinding.SwitchTypeBinding
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import java.util.Locale
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.launch
+import com.google.android.material.R as MaterialR
+import com.looker.core.common.BuildConfig as CommonBuildConfig
+import com.looker.core.common.R as CommonR
 
 @AndroidEntryPoint
 class SettingsFragment : Fragment() {
 
     companion object {
         fun newInstance() = SettingsFragment()
+
+        private const val BACKUP_MIME_TYPE = "application/json"
+        private const val REPO_BACKUP_NAME = "droidify_repos"
+        private const val SETTINGS_BACKUP_NAME = "droidify_settings"
 
         private val localeCodesList: List<String> = CommonBuildConfig.DETECTED_LOCALES
             .toList()
@@ -58,6 +81,38 @@ class SettingsFragment : Fragment() {
     private var _binding: SettingsPageBinding? = null
     private val binding get() = _binding!!
 
+    private val createExportFileForSettings =
+        registerForActivityResult(CreateDocument(BACKUP_MIME_TYPE)) { fileUri ->
+            if (fileUri != null) {
+                viewModel.exportSettings(fileUri)
+            }
+        }
+
+    private val openImportFileForSettings =
+        registerForActivityResult(OpenDocument()) { fileUri ->
+            if (fileUri != null) {
+                viewModel.importSettings(fileUri)
+            } else {
+                viewModel.createSnackbar(CommonR.string.file_format_error_DESC)
+            }
+        }
+
+    private val createExportFileForRepos =
+        registerForActivityResult(CreateDocument(BACKUP_MIME_TYPE)) { fileUri ->
+            if (fileUri != null) {
+                viewModel.exportRepos(fileUri)
+            }
+        }
+
+    private val openImportFileForRepos =
+        registerForActivityResult(OpenDocument()) { fileUri ->
+            if (fileUri != null) {
+                viewModel.importRepos(fileUri)
+            } else {
+                viewModel.createSnackbar(CommonR.string.file_format_error_DESC)
+            }
+        }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -65,9 +120,12 @@ class SettingsFragment : Fragment() {
     ): View {
         _binding = SettingsPageBinding.inflate(inflater, container, false)
         binding.nestedScrollView.systemBarsPadding()
+        if (requireContext().isIgnoreBatteryEnabled()) {
+            viewModel.allowBackground()
+        }
         val toolbar = binding.toolbar
         toolbar.navigationIcon = toolbar.context.homeAsUp
-        toolbar.setNavigationOnClickListener { activity?.onBackPressed() }
+        toolbar.setNavigationOnClickListener { activity?.onBackPressedDispatcher?.onBackPressed() }
         toolbar.title = getString(CommonR.string.settings)
         with(binding) {
             dynamicTheme.root.isVisible = SdkCheck.isSnowCake
@@ -95,6 +153,11 @@ class SettingsFragment : Fragment() {
                 titleText = getString(CommonR.string.unstable_updates),
                 contentText = getString(CommonR.string.unstable_updates_summary),
                 setting = viewModel.getInitialSetting { unstableUpdate }
+            )
+            ignoreSignature.connect(
+                titleText = getString(CommonR.string.ignore_signature),
+                contentText = getString(CommonR.string.ignore_signature_summary),
+                setting = viewModel.getInitialSetting { ignoreSignature }
             )
             incompatibleUpdates.connect(
                 titleText = getString(CommonR.string.incompatible_versions),
@@ -210,6 +273,33 @@ class SettingsFragment : Fragment() {
 
             forceCleanUp.title.text = getString(CommonR.string.force_clean_up)
             forceCleanUp.content.text = getString(CommonR.string.force_clean_up_DESC)
+
+            importSettings.title.text = getString(CommonR.string.import_settings_title)
+            importSettings.content.text = getString(CommonR.string.import_settings_DESC)
+            exportSettings.title.text = getString(CommonR.string.export_settings_title)
+            exportSettings.content.text = getString(CommonR.string.export_settings_DESC)
+
+            importRepos.title.text = getString(CommonR.string.import_repos_title)
+            importRepos.content.text = getString(CommonR.string.import_repos_DESC)
+            exportRepos.title.text = getString(CommonR.string.export_repos_title)
+            exportRepos.content.text = getString(CommonR.string.export_repos_DESC)
+
+            allowBackgroundWork.title.text = getString(CommonR.string.require_background_access)
+            allowBackgroundWork.content.text =
+                getString(CommonR.string.require_background_access_DESC)
+            allowBackgroundWork.root.setBackgroundColor(
+                requireContext()
+                    .getColorFromAttr(MaterialR.attr.colorErrorContainer)
+                    .defaultColor
+            )
+            allowBackgroundWork.title.setTextColor(
+                requireContext()
+                    .getColorFromAttr(MaterialR.attr.colorOnErrorContainer)
+            )
+            allowBackgroundWork.content.setTextColor(
+                requireContext()
+                    .getColorFromAttr(MaterialR.attr.colorOnErrorContainer)
+            )
             creditFoxy.title.text = getString(CommonR.string.special_credits)
             creditFoxy.content.text = FOXY_DROID_TITLE
             droidify.title.text = DROID_IFY_TITLE
@@ -224,11 +314,22 @@ class SettingsFragment : Fragment() {
                     }
                 }
                 launch {
-                    viewModel.settingsFlow.collect(::updateSettings)
+                    viewModel.settingsFlow.collect { setting ->
+                        updateSettings(setting)
+                        binding.allowBackgroundWork.root.isVisible = !viewModel.backgroundTask.first()
+                            && setting.autoSync != AutoSync.NEVER
+                    }
                 }
             }
         }
         return binding.root
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (requireContext().isIgnoreBatteryEnabled()) {
+            viewModel.allowBackground()
+        }
     }
 
     override fun onDestroyView() {
@@ -253,11 +354,32 @@ class SettingsFragment : Fragment() {
             unstableUpdates.checked.setOnCheckedChangeListener { _, checked ->
                 viewModel.setUnstableUpdates(checked)
             }
+            ignoreSignature.checked.setOnCheckedChangeListener { _, checked ->
+                viewModel.setIgnoreSignature(checked)
+            }
             incompatibleUpdates.checked.setOnCheckedChangeListener { _, checked ->
                 viewModel.setIncompatibleUpdates(checked)
             }
             forceCleanUp.root.setOnClickListener {
                 viewModel.forceCleanup(it.context)
+            }
+            importSettings.root.setOnClickListener {
+                openImportFileForSettings.launch(arrayOf(BACKUP_MIME_TYPE))
+            }
+            exportSettings.root.setOnClickListener {
+                createExportFileForSettings.launch(SETTINGS_BACKUP_NAME)
+            }
+            importRepos.root.setOnClickListener {
+                openImportFileForRepos.launch(arrayOf(BACKUP_MIME_TYPE))
+            }
+            exportRepos.root.setOnClickListener {
+                createExportFileForRepos.launch(REPO_BACKUP_NAME)
+            }
+            allowBackgroundWork.root.setOnClickListener {
+                requireContext().requestBatteryFreedom()
+                if (requireContext().isIgnoreBatteryEnabled()) {
+                    viewModel.allowBackground()
+                }
             }
             creditFoxy.root.setOnClickListener {
                 openLink(FOXY_DROID_URL)
@@ -307,8 +429,8 @@ class SettingsFragment : Fragment() {
     private fun openLink(link: String) {
         try {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link)))
-        } catch (e: Exception) {
-            e.printStackTrace()
+        } catch (e: IllegalStateException) {
+            viewModel.createSnackbar(CommonR.string.cannot_open_link)
         }
     }
 

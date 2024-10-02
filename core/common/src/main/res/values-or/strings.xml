@@ -93,7 +93,7 @@
     <string name="incompatible_platforms_DESC_FORMAT">ତୁମର %1$s ପ୍ଲାଟଫର୍ମ ସମର୍ଥିତ ନୁହେଁ । ସମର୍ଥିତ ପ୍ଲାଟଫର୍ମ:%2$s।</string>
     <string name="incompatible_signature_DESC">ଏହି ଡିଭାଇସ୍ ଆପଣଙ୍କ ଡିଭାଇସରେ ସଂସ୍ଥାପିତ ହୋଇଥିବା ତୁଳନାରେ ଏକ ଭିନ୍ନ ସାର୍ଟିଫିକେଟ୍ ସହିତ ସାଇନ୍ ହୋଇଛି । ପ୍ରଥମେ ଏହାକୁ ସଂସ୍ଥାପନ କରନ୍ତୁ ।</string>
     <string name="legacy_installer">ପୁରୁଣା ସଂସ୍ଥାପକ</string>
-    <string name="link_copied_to_clipboard">ଲିଙ୍କ୍ କ୍ଲିପବୋର୍ଡରେ କପି ହୋଇଛି</string>
+    <string name="link_copied_to_clipboard">ସଂଯୋଗ ନକଲ ହୋଇଛି</string>
     <string name="recently_updated">ସମ୍ପ୍ରତି ଅଦ୍ୟତନ ହୋଇଛି</string>
     <string name="incompatible_version">ଅସଙ୍ଗତ ସଂସ୍କରଣ</string>
     <string name="incompatible_versions_summary">ଡିଭାଇସ୍ ସହିତ ଅସଙ୍ଗତ ପ୍ରୟୋଗ ସଂସ୍କରଣଗୁଡିକ ଦେଖାନ୍ତୁ</string>
@@ -221,4 +221,19 @@
     <string name="label_copy">ନକଲ କରନ୍ତୁ</string>
     <string name="proxy_port_error_not_int">ପ୍ରକ୍ସି ପୋର୍ଟ କେବଳ ଗୋଟିଏ ପୂର୍ଣ୍ଣସଂଖ୍ୟା ହୋଇପାରେ</string>
     <string name="repository_not_found">ନିମ୍ନଲିଖିତ ଭଣ୍ଡାର ମିଳିଲା ନାହିଁ</string>
+    <string name="import_settings_title">ସେଟିଂସମୂହ ଆମଦାନୀ କରନ୍ତୁ</string>
+    <string name="import_export">ଆମଦାନୀ ଏବଂ ରପ୍ତାନି</string>
+    <string name="import_settings_DESC">ଫାଇଲରୁ ସେଟିଂସମୂହ ଏବଂ ପସନ୍ଦଗୁଡିକ ଆମଦାନୀ କରନ୍ତୁ</string>
+    <string name="export_settings_title">ସେଟିଂସମୂହ ରପ୍ତାନି କରନ୍ତୁ</string>
+    <string name="export_repos_DESC">ସମସ୍ତ ସଂଗ୍ରହାଳୟ ଫାଇଲ୍ କରିବାକୁ ରପ୍ତାନି କରନ୍ତୁ</string>
+    <string name="import_repos_title">ସଂଗ୍ରହାଳୟ ଆମଦାନି କରନ୍ତୁ</string>
+    <string name="export_settings_DESC">ଫାଇଲ୍ ପାଇଁ ସେଟିଂସମୂହ ଏବଂ ପସନ୍ଦଗୁଡିକ ରପ୍ତାନି କରନ୍ତୁ</string>
+    <string name="export_repos_title">ସଂଗ୍ରହାଳୟ ରପ୍ତାନି କରନ୍ତୁ</string>
+    <string name="import_repos_DESC">ଫାଇଲରୁ ସମସ୍ତ ସଂଗ୍ରହାଳୟ ଆମଦାନି କରନ୍ତୁ</string>
+    <string name="has_tethered_network">ଗୋଟିଏ ନିର୍ଦ୍ଦିଷ୍ଟ ନେଟୱର୍କ ସେବାରେ ବାନ୍ଧି ରଖନ୍ତୁ</string>
+    <string name="cannot_open_link">ସଂଯୋଗକୁ ଖୋଲାଯାଇପାରିବ ନାହିଁ</string>
+    <string name="ignore_signature">ଦସ୍ତଖତକୁ ଅଗ୍ରାହ୍ୟ କରନ୍ତୁ</string>
+    <string name="ignore_signature_summary">LSPosed ବ୍ୟବହାରକାରୀ କିମ୍ବା ଉନ୍ନତ ବ୍ୟବହାରକାରୀଙ୍କ ପାଇଁ apk ସଂସ୍ଥାପନ କରିବା ସମୟରେ ଦସ୍ତଖତ ଯାଂଚ୍ ଅଗ୍ରାହ୍ୟ କରନ୍ତୁ</string>
+    <string name="require_background_access">ପୃଷ୍ଠଭୂମି ପ୍ରବେଶ ଆବଶ୍ୟକ କରେ</string>
+    <string name="require_background_access_DESC">ବ୍ୟାକଗ୍ରାଉଣ୍ଡ ସିଙ୍କ ସଠିକ୍ ଭାବରେ ଚଲାଇବା ପାଇଁ ପୃଷ୍ଠଭୂମି ପ୍ରବେଶ ଆବଶ୍ୟକ</string>
 </resources>

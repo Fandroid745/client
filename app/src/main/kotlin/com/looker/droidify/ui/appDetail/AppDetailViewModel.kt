@@ -4,13 +4,13 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.looker.core.common.extension.asStateFlow
-import com.looker.core.common.toPackageName
 import com.looker.core.datastore.SettingsRepository
-import com.looker.core.model.InstalledItem
-import com.looker.core.model.Product
-import com.looker.core.model.Repository
+import com.looker.core.domain.model.toPackageName
 import com.looker.droidify.BuildConfig
 import com.looker.droidify.database.Database
+import com.looker.droidify.model.InstalledItem
+import com.looker.droidify.model.Product
+import com.looker.droidify.model.Repository
 import com.looker.installer.InstallManager
 import com.looker.installer.model.InstallState
 import com.looker.installer.model.installFrom
@@ -45,7 +45,7 @@ class AppDetailViewModel @Inject constructor(
             Database.RepositoryAdapter.getAllStream(),
             Database.InstalledAdapter.getStream(packageName),
             repoAddress,
-            flow { emit(settingsRepository.fetchInitialPreferences()) }
+            flow { emit(settingsRepository.getInitial()) }
         ) { products, repositories, installedItem, suggestedAddress, initialSettings ->
             val idAndRepos = repositories.associateBy { it.id }
             val filteredProducts = products.filter { product ->
@@ -61,6 +61,10 @@ class AppDetailViewModel @Inject constructor(
                 addressIfUnavailable = suggestedAddress
             )
         }.asStateFlow(AppDetailUiState())
+
+    suspend fun shouldIgnoreSignature(): Boolean {
+        return settingsRepository.getInitial().ignoreSignature
+    }
 
     fun setFavouriteState() {
         viewModelScope.launch {
@@ -99,5 +103,5 @@ data class AppDetailUiState(
     val isSelf: Boolean = false,
     val isFavourite: Boolean = false,
     val allowIncompatibleVersions: Boolean = false,
-    val addressIfUnavailable: String? = null,
+    val addressIfUnavailable: String? = null
 )

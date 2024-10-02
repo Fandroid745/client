@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.drawable.Drawable
 import android.net.ConnectivityManager
+import android.os.PowerManager
 import android.view.inputmethod.InputMethodManager
 import androidx.annotation.AttrRes
 import androidx.annotation.DrawableRes
@@ -29,6 +30,9 @@ inline val Context.jobScheduler: JobScheduler?
     get() = getSystemService()
 
 inline val Context.notificationManager: NotificationManager?
+    get() = getSystemService()
+
+inline val Context.powerManager: PowerManager?
     get() = getSystemService()
 
 fun Context.copyToClipboard(clip: String) {
@@ -71,9 +75,7 @@ private fun Context.getDrawableFromAttr(attrResId: Int): Drawable {
 }
 
 fun Context.getDrawableCompat(@DrawableRes resId: Int = R.drawable.background_border): Drawable =
-    AppCompatResources.getDrawable(this, resId) ?: throw IllegalStateException(
-        "Cannot find drawable, ID: $resId"
-    )
+    requireNotNull(AppCompatResources.getDrawable(this, resId)) { "Cannot find drawable, ID: $resId" }
 
 fun Context.getColorFromAttr(@AttrRes attrResId: Int): ColorStateList {
     val typedArray = obtainStyledAttributes(intArrayOf(attrResId))

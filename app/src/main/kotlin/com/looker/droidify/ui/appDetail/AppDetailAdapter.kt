@@ -7,7 +7,7 @@ import android.content.pm.PermissionInfo
 import android.content.res.Resources
 import android.graphics.*
 import android.net.Uri
-import android.os.Parcel
+import android.os.Parcelable
 import android.text.SpannableStringBuilder
 import android.text.format.DateFormat
 import android.text.method.LinkMovementMethod
@@ -32,15 +32,18 @@ import com.google.android.material.imageview.ShapeableImageView
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.google.android.material.snackbar.Snackbar
-import com.looker.core.common.DataSize
+import com.looker.network.DataSize
 import com.looker.core.common.extension.*
-import com.looker.core.common.file.KParcelable
 import com.looker.core.common.formatSize
 import com.looker.core.common.nullIfEmpty
-import com.looker.core.datastore.Settings
-import com.looker.core.model.*
 import com.looker.droidify.R
 import com.looker.droidify.content.ProductPreferences
+import com.looker.droidify.model.InstalledItem
+import com.looker.droidify.model.Product
+import com.looker.droidify.model.ProductPreference
+import com.looker.droidify.model.Release
+import com.looker.droidify.model.Repository
+import com.looker.droidify.model.findSuggested
 import com.looker.droidify.utility.PackageItemResolver
 import com.looker.droidify.utility.extension.ImageUtils.icon
 import com.looker.droidify.utility.extension.android.Android
@@ -51,6 +54,7 @@ import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toJavaLocalDateTime
 import kotlinx.datetime.toLocalDateTime
+import kotlinx.parcelize.Parcelize
 import java.lang.ref.WeakReference
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -74,7 +78,7 @@ class AppDetailAdapter(private val callbacks: Callbacks) :
         fun onFavouriteClicked()
         fun onPreferenceChanged(preference: ProductPreference)
         fun onPermissionsClick(group: String?, permissions: List<String>)
-        fun onScreenshotClick(screenshot: Product.Screenshot)
+        fun onScreenshotClick(screenshot: Product.Screenshot, parentView: ImageView)
         fun onReleaseClick(release: Release)
         fun onRequestAddRepository(address: String)
         fun onUriClick(uri: Uri, shouldConfirm: Boolean): Boolean
@@ -566,8 +570,8 @@ class AppDetailAdapter(private val callbacks: Callbacks) :
                 setPadding(20.dp, 20.dp, 20.dp, 20.dp)
                 val imageView = ImageView(context)
                 val bitmap = Bitmap.createBitmap(
-                    64.dp.px.roundToInt(),
-                    32.dp.px.roundToInt(),
+                    64.dp.dpToPx.roundToInt(),
+                    32.dp.dpToPx.roundToInt(),
                     Bitmap.Config.ARGB_8888
                 )
                 val canvas = Canvas(bitmap)
@@ -588,8 +592,8 @@ class AppDetailAdapter(private val callbacks: Callbacks) :
                     background = context.corneredBackground
                     setPadding(0, 12.dp, 0, 12.dp)
                 }
-                val waveHeight = 2.dp.px
-                val waveWidth = 12.dp.px
+                val waveHeight = 2.dp.dpToPx
+                val waveWidth = 12.dp.dpToPx
                 with(canvas) {
                     val linePaint = Paint().apply {
                         color = context.getColorFromAttr(MaterialR.attr.colorOutline).defaultColor
@@ -679,7 +683,7 @@ class AppDetailAdapter(private val callbacks: Callbacks) :
         products: List<Pair<Product, Repository>>,
         installedItem: InstalledItem?,
         isFavourite: Boolean,
-        allowIncompatibleVersion: Boolean,
+        allowIncompatibleVersion: Boolean
     ) {
         items.clear()
         val productRepository = products.findSuggested(installedItem) ?: run {
@@ -825,9 +829,10 @@ class AppDetailAdapter(private val callbacks: Callbacks) :
                 "NSFW" -> context.getString(stringRes.contains_nsfw)
                 "Tracking" -> context.getString(stringRes.tracks_or_reports_your_activity)
                 "UpstreamNonFree" -> context.getString(stringRes.upstream_source_code_is_not_free)
-                // special tag(https://floss.social/@IzzyOnDroid/110815951568369581)
+                // special tag (https://floss.social/@IzzyOnDroid/110815951568369581)
                 // apps include non-free libraries
                 "NonFreeComp" -> context.getString(stringRes.has_non_free_components)
+                "TetheredNet" -> context.getString(stringRes.has_tethered_network)
                 else -> context.getString(stringRes.unknown_FORMAT, it)
             }
         }.joinToString(separator = "\n") { "\u2022 $it" }
@@ -1276,8 +1281,8 @@ class AppDetailAdapter(private val callbacks: Callbacks) :
                             background = context.corneredBackground
                             setPadding(8.dp, 4.dp, 8.dp, 4.dp)
                             backgroundTintList =
-                                context.getColorFromAttr(MaterialR.attr.colorSecondaryContainer)
-                            setTextColor(context.getColorFromAttr(MaterialR.attr.colorSecondary))
+                                context.getColorFromAttr(MaterialR.attr.colorTertiaryContainer)
+                            setTextColor(context.getColorFromAttr(MaterialR.attr.colorOnTertiaryContainer))
                         }
                     } else {
                         if (background != null) {
@@ -1408,7 +1413,9 @@ class AppDetailAdapter(private val callbacks: Callbacks) :
                     layoutManager =
                         LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
                     adapter =
-                        ScreenshotsAdapter { callbacks.onScreenshotClick(it) }.apply {
+                        ScreenshotsAdapter { screenshot, view ->
+                            callbacks.onScreenshotClick(screenshot, view)
+                        }.apply {
                             setScreenshots(item.repository, item.packageName, item.screenshots)
                         }
                 }
@@ -1588,7 +1595,7 @@ class AppDetailAdapter(private val callbacks: Callbacks) :
                     holder.itemView.apply {
                         background = context.corneredBackground
                         backgroundTintList =
-                            holder.itemView.context.getColorFromAttr(MaterialR.attr.colorSurface)
+                            holder.itemView.context.getColorFromAttr(MaterialR.attr.colorSurfaceContainerHigh)
                     }
                 } else {
                     holder.itemView.background = null
@@ -1607,9 +1614,14 @@ class AppDetailAdapter(private val callbacks: Callbacks) :
                     )
                     background = context.corneredBackground
                     setPadding(15, 15, 15, 15)
+                    val (background, foreground) = if (installed) {
+                        MaterialR.attr.colorSecondaryContainer to MaterialR.attr.colorOnSecondaryContainer
+                    } else {
+                        MaterialR.attr.colorPrimaryContainer to MaterialR.attr.colorOnPrimaryContainer
+                    }
                     backgroundTintList =
-                        context.getColorFromAttr(MaterialR.attr.colorSecondaryContainer)
-                    setTextColor(context.getColorFromAttr(MaterialR.attr.colorOnSecondaryContainer))
+                        context.getColorFromAttr(background)
+                    setTextColor(context.getColorFromAttr(foreground))
                 }
                 holder.source.text =
                     context.getString(stringRes.provided_by_FORMAT, item.repository.name)
@@ -1789,22 +1801,8 @@ class AppDetailAdapter(private val callbacks: Callbacks) :
         }
     }
 
-    class SavedState internal constructor(internal val expanded: Set<ExpandType>) : KParcelable {
-        override fun writeToParcel(dest: Parcel, flags: Int) {
-            dest.writeStringList(expanded.map { it.name }.toList())
-        }
-
-        companion object {
-            @Suppress("unused")
-            @JvmField
-            val CREATOR = KParcelable.creator {
-                val expanded = it.createStringArrayList()!!
-                    .map(ExpandType::valueOf)
-                    .toSet()
-                SavedState(expanded)
-            }
-        }
-    }
+    @Parcelize
+    class SavedState internal constructor(internal val expanded: Set<ExpandType>) : Parcelable
 
     fun saveState(): SavedState? {
         return if (expanded.isNotEmpty()) {

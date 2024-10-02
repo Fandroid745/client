@@ -5,25 +5,29 @@ import android.graphics.drawable.Drawable
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.ImageView
 import androidx.recyclerview.widget.RecyclerView
+import coil.dispose
 import coil.load
+import coil.size.Dimension
 import coil.size.Scale
-import com.google.android.material.R as MaterialR
 import com.google.android.material.imageview.ShapeableImageView
-import com.looker.core.common.R.dimen as dimenRes
 import com.looker.core.common.extension.aspectRatio
 import com.looker.core.common.extension.authentication
 import com.looker.core.common.extension.camera
 import com.looker.core.common.extension.dp
+import com.looker.core.common.extension.dpToPx
 import com.looker.core.common.extension.getColorFromAttr
 import com.looker.core.common.extension.selectableBackground
-import com.looker.core.model.Product
-import com.looker.core.model.Repository
+import com.looker.droidify.model.Product
+import com.looker.droidify.model.Repository
 import com.looker.droidify.graphics.PaddingDrawable
 import com.looker.droidify.utility.extension.ImageUtils.url
 import com.looker.droidify.widget.StableRecyclerAdapter
+import com.google.android.material.R as MaterialR
+import com.looker.core.common.R.dimen as dimenRes
 
-class ScreenshotsAdapter(private val onClick: (Product.Screenshot) -> Unit) :
+class ScreenshotsAdapter(private val onClick: (Product.Screenshot, ImageView) -> Unit) :
     StableRecyclerAdapter<ScreenshotsAdapter.ViewType, RecyclerView.ViewHolder>() {
     enum class ViewType { SCREENSHOT }
 
@@ -49,19 +53,22 @@ class ScreenshotsAdapter(private val onClick: (Product.Screenshot) -> Unit) :
 
         init {
             with(image) {
+                layout(0, 0, 0, 0)
+                adjustViewBounds = true
                 shapeAppearanceModel = imageShapeModel
                 background = context.selectableBackground
+                isFocusable = true
             }
             with(itemView as FrameLayout) {
+                addView(image)
                 layoutParams = RecyclerView.LayoutParams(
                     RecyclerView.LayoutParams.WRAP_CONTENT,
-                    150.dp
+                    150.dp,
                 ).apply {
                     marginStart = radius.toInt()
                     marginEnd = radius.toInt()
                 }
                 foregroundGravity = Gravity.CENTER
-                addView(image)
             }
         }
     }
@@ -88,7 +95,12 @@ class ScreenshotsAdapter(private val onClick: (Product.Screenshot) -> Unit) :
         viewType: ViewType
     ): RecyclerView.ViewHolder {
         return ViewHolder(parent.context).apply {
-            image.setOnClickListener { onClick(items[absoluteAdapterPosition].screenshot) }
+            image.setOnClickListener {
+                onClick(
+                    items[absoluteAdapterPosition].screenshot,
+                    it as ImageView
+                )
+            }
         }
     }
 
@@ -98,14 +110,21 @@ class ScreenshotsAdapter(private val onClick: (Product.Screenshot) -> Unit) :
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         holder as ViewHolder
         val item = items[position]
-        holder.image.load(
-            item.screenshot.url(item.repository, item.packageName)
-        ) {
-            scale(Scale.FILL)
-            placeholder(holder.placeholder)
-            error(holder.placeholder)
-            authentication(item.repository.authentication)
+        with(holder.image) {
+            load(item.screenshot.url(item.repository, item.packageName)) {
+                size(Dimension.Undefined, Dimension(150.dp.dpToPx.toInt()))
+                scale(Scale.FIT)
+                placeholder(holder.placeholder)
+                error(holder.placeholder)
+                authentication(item.repository.authentication)
+            }
         }
+    }
+
+    override fun onViewRecycled(holder: RecyclerView.ViewHolder) {
+        super.onViewRecycled(holder)
+        holder as ViewHolder
+        holder.image.dispose()
     }
 
     private sealed class Item {

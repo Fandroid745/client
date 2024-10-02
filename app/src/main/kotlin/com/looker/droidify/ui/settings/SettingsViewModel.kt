@@ -1,43 +1,54 @@
 package com.looker.droidify.ui.settings
 
 import android.content.Context
+import android.net.Uri
+import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.looker.core.common.R as CommonR
 import com.looker.core.common.extension.toLocale
 import com.looker.core.datastore.Settings
 import com.looker.core.datastore.SettingsRepository
+import com.looker.core.datastore.get
 import com.looker.core.datastore.model.AutoSync
 import com.looker.core.datastore.model.InstallerType
 import com.looker.core.datastore.model.ProxyType
 import com.looker.core.datastore.model.Theme
+import com.looker.droidify.database.Database
+import com.looker.droidify.database.RepositoryExporter
 import com.looker.droidify.work.CleanUpWorker
 import com.looker.installer.installers.shizuku.ShizukuPermissionHandler
 import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
-import kotlin.time.Duration
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import javax.inject.Inject
+import kotlin.time.Duration
+import com.looker.core.common.R as CommonR
 
 @HiltViewModel
 class SettingsViewModel
 @Inject constructor(
     private val settingsRepository: SettingsRepository,
-    private val shizukuPermissionHandler: ShizukuPermissionHandler
+    private val shizukuPermissionHandler: ShizukuPermissionHandler,
+    private val repositoryExporter: RepositoryExporter
 ) : ViewModel() {
 
     private val initialSetting = flow {
-        emit(settingsRepository.fetchInitialPreferences())
+        emit(settingsRepository.getInitial())
     }
-    val settingsFlow get() = settingsRepository.settingsFlow
+    val settingsFlow get() = settingsRepository.data
+
+    private val _backgroundTask = MutableStateFlow(false)
+    val backgroundTask = _backgroundTask.asStateFlow()
 
     private val _snackbarStringId = MutableSharedFlow<Int>()
     val snackbarStringId = _snackbarStringId.asSharedFlow()
@@ -45,6 +56,12 @@ class SettingsViewModel
     fun <T> getSetting(block: Settings.() -> T): Flow<T> = settingsRepository.get(block)
 
     fun <T> getInitialSetting(block: Settings.() -> T): Flow<T> = initialSetting.map { it.block() }
+
+    fun allowBackground() {
+        viewModelScope.launch {
+            _backgroundTask.emit(true)
+        }
+    }
 
     fun setLanguage(language: String) {
         viewModelScope.launch {
@@ -108,6 +125,12 @@ class SettingsViewModel
         }
     }
 
+    fun setIgnoreSignature(enable: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setIgnoreSignature(enable)
+        }
+    }
+
     fun setIncompatibleUpdates(enable: Boolean) {
         viewModelScope.launch {
             settingsRepository.enableIncompatibleVersion(enable)
@@ -131,7 +154,7 @@ class SettingsViewModel
             try {
                 settingsRepository.setProxyPort(proxyPort.toInt())
             } catch (e: NumberFormatException) {
-                _snackbarStringId.emit(CommonR.string.proxy_port_error_not_int)
+                createSnackbar(CommonR.string.proxy_port_error_not_int)
             }
         }
     }
@@ -143,16 +166,48 @@ class SettingsViewModel
         }
     }
 
+    fun exportSettings(file: Uri) {
+        viewModelScope.launch {
+            settingsRepository.export(file)
+        }
+    }
+
+    fun importSettings(file: Uri) {
+        viewModelScope.launch {
+            settingsRepository.import(file)
+        }
+    }
+
+    fun exportRepos(file: Uri) {
+        viewModelScope.launch {
+            val repos = Database.RepositoryAdapter.getAll()
+            repositoryExporter.export(repos, file)
+        }
+    }
+
+    fun importRepos(file: Uri) {
+        viewModelScope.launch {
+            val repos = repositoryExporter.import(file)
+            Database.RepositoryAdapter.importRepos(repos)
+        }
+    }
+
+    fun createSnackbar(@StringRes message: Int) {
+        viewModelScope.launch {
+            _snackbarStringId.emit(message)
+        }
+    }
+
     private fun handleShizuku() {
         viewModelScope.launch {
             val state = shizukuPermissionHandler.state.first()
             if (state.isAlive && state.isPermissionGranted) cancel()
             if (state.isInstalled) {
                 if (!state.isAlive) {
-                    _snackbarStringId.emit(CommonR.string.shizuku_not_alive)
+                    createSnackbar(CommonR.string.shizuku_not_alive)
                 }
             } else {
-                _snackbarStringId.emit(CommonR.string.shizuku_not_installed)
+                createSnackbar(CommonR.string.shizuku_not_installed)
             }
         }
     }

@@ -1,28 +1,28 @@
 package com.looker.droidify
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
-import android.os.Parcel
+import android.os.Parcelable
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
-import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.commit
 import androidx.lifecycle.lifecycleScope
-import com.looker.core.common.*
-import com.looker.core.common.extension.*
-import com.looker.core.common.file.KParcelable
+import com.looker.core.common.DeeplinkType
+import com.looker.core.common.SdkCheck
+import com.looker.core.common.deeplinkType
+import com.looker.core.common.extension.homeAsUp
+import com.looker.core.common.extension.inputManager
+import com.looker.core.common.requestNotificationPermission
 import com.looker.core.datastore.SettingsRepository
 import com.looker.core.datastore.extension.getThemeRes
+import com.looker.core.datastore.get
 import com.looker.droidify.database.CursorOwner
-import com.looker.droidify.ui.ScreenFragment
 import com.looker.droidify.ui.appDetail.AppDetailFragment
 import com.looker.droidify.ui.favourites.FavouritesFragment
 import com.looker.droidify.ui.repository.EditRepositoryFragment
@@ -37,11 +37,12 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
-import javax.inject.Inject
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.parcelize.Parcelize
+import javax.inject.Inject
 
 @AndroidEntryPoint
 abstract class ScreenActivity : AppCompatActivity() {
@@ -60,41 +61,17 @@ abstract class ScreenActivity : AppCompatActivity() {
     @Inject
     lateinit var installer: InstallManager
 
+    @Parcelize
     private class FragmentStackItem(
         val className: String,
         val arguments: Bundle?,
         val savedState: Fragment.SavedState?
-    ) : KParcelable {
-        override fun writeToParcel(dest: Parcel, flags: Int) {
-            dest.writeString(className)
-            dest.writeByte(if (arguments != null) 1 else 0)
-            arguments?.writeToParcel(dest, flags)
-            dest.writeByte(if (savedState != null) 1 else 0)
-            savedState?.writeToParcel(dest, flags)
-        }
-
-        companion object {
-            @Suppress("unused")
-            @JvmField
-            val CREATOR = KParcelable.creator {
-                val className = it.readString()!!
-                val arguments =
-                    if (it.readByte().toInt() == 0) null else Bundle.CREATOR.createFromParcel(it)
-                arguments?.classLoader = ScreenActivity::class.java.classLoader
-                val savedState = if (it.readByte()
-                    .toInt() == 0
-                ) {
-                    null
-                } else {
-                    Fragment.SavedState.CREATOR.createFromParcel(it)
-                }
-                FragmentStackItem(className, arguments, savedState)
-            }
-        }
-    }
+    ) : Parcelable
 
     lateinit var cursorOwner: CursorOwner
         private set
+
+    private var onBackPressedCallback: OnBackPressedCallback? = null
 
     private val fragmentStack = mutableListOf<FragmentStackItem>()
 
@@ -152,25 +129,7 @@ abstract class ScreenActivity : AppCompatActivity() {
             )
         )
 
-        when {
-            ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED -> {
-            }
-
-            shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS) -> {
-                sdkAbove(Build.VERSION_CODES.TIRAMISU) {
-                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                }
-            }
-
-            else -> {
-                sdkAbove(Build.VERSION_CODES.TIRAMISU) {
-                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                }
-            }
-        }
+        requestNotificationPermission(request = notificationPermission::launch)
 
         supportFragmentManager.addFragmentOnAttachListener { _, _ ->
             hideKeyboard()
@@ -199,6 +158,7 @@ abstract class ScreenActivity : AppCompatActivity() {
             window.navigationBarColor = resources.getColor(android.R.color.transparent, theme)
             WindowCompat.setDecorFitsSystemWindows(window, false)
         }
+        backHandler()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -206,14 +166,20 @@ abstract class ScreenActivity : AppCompatActivity() {
         outState.putParcelableArrayList(STATE_FRAGMENT_STACK, ArrayList(fragmentStack))
     }
 
-    override fun onBackPressed() {
-        val currentFragment = currentFragment
-        if (!(currentFragment is ScreenFragment && currentFragment.onBackPressed())) {
-            hideKeyboard()
-            if (!popFragment()) {
-                super.onBackPressed()
+    private fun backHandler() {
+        if (onBackPressedCallback == null) {
+            onBackPressedCallback = object : OnBackPressedCallback(enabled = false) {
+                override fun handleOnBackPressed() {
+                    hideKeyboard()
+                    popFragment()
+                }
             }
+            onBackPressedDispatcher.addCallback(
+                this,
+                onBackPressedCallback!!,
+            )
         }
+        onBackPressedCallback?.isEnabled = fragmentStack.isNotEmpty()
     }
 
     private fun replaceFragment(fragment: Fragment, open: Boolean?) {
@@ -244,6 +210,7 @@ abstract class ScreenActivity : AppCompatActivity() {
             )
         }
         replaceFragment(fragment, true)
+        backHandler()
     }
 
     private fun popFragment(): Boolean {
@@ -253,6 +220,7 @@ abstract class ScreenActivity : AppCompatActivity() {
             stackItem.arguments?.let(fragment::setArguments)
             stackItem.savedState?.let(fragment::setInitialSavedState)
             replaceFragment(fragment, false)
+            backHandler()
             true
         }
     }
@@ -264,11 +232,11 @@ abstract class ScreenActivity : AppCompatActivity() {
     internal fun onToolbarCreated(toolbar: Toolbar) {
         if (fragmentStack.isNotEmpty()) {
             toolbar.navigationIcon = toolbar.context.homeAsUp
-            toolbar.setNavigationOnClickListener { onBackPressed() }
+            toolbar.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
         }
     }
 
-    override fun onNewIntent(intent: Intent?) {
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleIntent(intent)
     }
@@ -282,6 +250,7 @@ abstract class ScreenActivity : AppCompatActivity() {
                 }
                 val tabsFragment = currentFragment as TabsFragment
                 tabsFragment.selectUpdates()
+                backHandler()
             }
 
             is SpecialIntent.Install -> {

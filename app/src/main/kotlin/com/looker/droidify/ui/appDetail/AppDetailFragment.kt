@@ -8,8 +8,10 @@ import android.os.Bundle
 import android.provider.Settings
 import android.view.MenuItem
 import android.view.View
+import android.widget.ImageView
 import androidx.appcompat.app.AlertDialog
 import androidx.core.net.toUri
+import androidx.core.os.bundleOf
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
@@ -18,6 +20,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.SimpleItemAnimator
+import coil.load
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.looker.core.common.extension.getLauncherActivities
 import com.looker.core.common.extension.getMutatedIcon
@@ -25,24 +28,26 @@ import com.looker.core.common.extension.isFirstItemVisible
 import com.looker.core.common.extension.isSystemApplication
 import com.looker.core.common.extension.systemBarsPadding
 import com.looker.core.common.extension.updateAsMutable
-import com.looker.core.model.InstalledItem
-import com.looker.core.model.Product
-import com.looker.core.model.ProductPreference
-import com.looker.core.model.Release
-import com.looker.core.model.Repository
-import com.looker.core.model.findSuggested
+import com.looker.droidify.model.InstalledItem
+import com.looker.droidify.model.Product
+import com.looker.droidify.model.ProductPreference
+import com.looker.droidify.model.Release
+import com.looker.droidify.model.Repository
+import com.looker.droidify.model.findSuggested
 import com.looker.droidify.content.ProductPreferences
 import com.looker.droidify.service.Connection
 import com.looker.droidify.service.DownloadService
+import com.looker.droidify.ui.Message
 import com.looker.droidify.ui.MessageDialog
 import com.looker.droidify.ui.ScreenFragment
 import com.looker.droidify.ui.appDetail.AppDetailViewModel.Companion.ARG_PACKAGE_NAME
 import com.looker.droidify.ui.appDetail.AppDetailViewModel.Companion.ARG_REPO_ADDRESS
-import com.looker.droidify.ui.screenshots.ScreenshotsFragment
+import com.looker.droidify.utility.extension.ImageUtils.url
 import com.looker.droidify.utility.extension.screenActivity
 import com.looker.droidify.utility.extension.startUpdate
 import com.looker.installer.model.InstallState
 import com.looker.installer.model.isCancellable
+import com.stfalcon.imageviewer.StfalconImageViewer
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -57,10 +62,10 @@ class AppDetailFragment() : ScreenFragment(), AppDetailAdapter.Callbacks {
     }
 
     constructor(packageName: String, repoAddress: String? = null) : this() {
-        arguments = Bundle().apply {
-            putString(ARG_PACKAGE_NAME, packageName)
-            putString(ARG_REPO_ADDRESS, repoAddress)
-        }
+        arguments = bundleOf(
+            ARG_PACKAGE_NAME to packageName,
+            ARG_REPO_ADDRESS to repoAddress
+        )
     }
 
     private enum class Action(
@@ -213,7 +218,9 @@ class AppDetailFragment() : ScreenFragment(), AppDetailAdapter.Callbacks {
         adapterState?.let { outState.putParcelable(STATE_ADAPTER, it) }
     }
 
-    private fun updateButtons(preference: ProductPreference = ProductPreferences[viewModel.packageName]) {
+    private fun updateButtons(
+        preference: ProductPreference = ProductPreferences[viewModel.packageName]
+    ) {
         val installed = installed
         val product = products.findSuggested(installed?.installedItem)?.first
         val compatible = product != null && product.selectedReleases.firstOrNull()
@@ -226,14 +233,14 @@ class AppDetailFragment() : ScreenFragment(), AppDetailAdapter.Callbacks {
         val canLaunch =
             product != null && installed != null && installed.launcherActivities.isNotEmpty()
 
-        val actions = mutableSetOf<Action>()
-
-        if (canInstall) actions += Action.INSTALL
-        if (canUpdate) actions += Action.UPDATE
-        if (canLaunch) actions += Action.LAUNCH
-        if (installed != null) actions += Action.DETAILS
-        if (canUninstall) actions += Action.UNINSTALL
-        actions += Action.SHARE
+        val actions = buildSet {
+            if (canInstall) add(Action.INSTALL)
+            if (canUpdate) add(Action.UPDATE)
+            if (canLaunch) add(Action.LAUNCH)
+            if (installed != null) add(Action.DETAILS)
+            if (canUninstall) add(Action.UNINSTALL)
+            add(Action.SHARE)
+        }
 
         val primaryAction = when {
             canUpdate -> Action.UPDATE
@@ -254,9 +261,7 @@ class AppDetailFragment() : ScreenFragment(), AppDetailAdapter.Callbacks {
 
         for (action in sequenceOf(
             Action.INSTALL,
-            Action.SHARE,
             Action.UPDATE,
-            Action.UNINSTALL
         )) {
             toolbar.menu.findItem(action.id).isEnabled = !downloading
         }
@@ -378,8 +383,9 @@ class AppDetailFragment() : ScreenFragment(), AppDetailAdapter.Callbacks {
             AppDetailAdapter.Action.SHARE -> {
                 val repo = products[0].second
                 val address = when {
-                    repo.name == "F-Droid" -> "https://www.f-droid.org/packages/" +
-                        "${viewModel.packageName}/"
+                    repo.name == "F-Droid" ->
+                        "https://f-droid.org/packages/" +
+                            "${viewModel.packageName}/"
 
                     "IzzyOnDroid" in repo.name -> {
                         "https://apt.izzysoft.de/fdroid/index/apk/${viewModel.packageName}"
@@ -420,26 +426,25 @@ class AppDetailFragment() : ScreenFragment(), AppDetailAdapter.Callbacks {
     }
 
     override fun onPermissionsClick(group: String?, permissions: List<String>) {
-        MessageDialog(MessageDialog.Message.Permissions(group, permissions))
+        MessageDialog(Message.Permissions(group, permissions))
             .show(childFragmentManager)
     }
 
-    override fun onScreenshotClick(screenshot: Product.Screenshot) {
-        val pair = products.asSequence()
-            .map { it ->
-                Pair(
-                    it.second,
-                    it.first.screenshots.find { it === screenshot }?.identifier
-                )
+    override fun onScreenshotClick(screenshot: Product.Screenshot, parentView: ImageView) {
+        val product = products
+            .firstOrNull { (product, _) ->
+                product.screenshots.find { it === screenshot }?.identifier != null
             }
-            .filter { it.second != null }.firstOrNull()
-        if (pair != null) {
-            val (repository, identifier) = pair
-            if (identifier != null) {
-                ScreenshotsFragment(viewModel.packageName, repository.id, identifier)
-                    .show(childFragmentManager)
+            ?: return
+        val screenshots = product.first.screenshots
+        val position = screenshots.indexOfFirst { screenshot.identifier == it.identifier }
+        StfalconImageViewer
+            .Builder(context, screenshots) { view, current ->
+                view.load(current.url(product.second, viewModel.packageName))
             }
-        }
+            .withTransitionFrom(parentView)
+            .withStartPosition(position)
+            .show()
     }
 
     override fun onReleaseClick(release: Release) {
@@ -447,7 +452,7 @@ class AppDetailFragment() : ScreenFragment(), AppDetailAdapter.Callbacks {
         when {
             release.incompatibilities.isNotEmpty() -> {
                 MessageDialog(
-                    MessageDialog.Message.ReleaseIncompatible(
+                    Message.ReleaseIncompatible(
                         release.incompatibilities,
                         release.platforms,
                         release.minSdkVersion,
@@ -457,29 +462,38 @@ class AppDetailFragment() : ScreenFragment(), AppDetailAdapter.Callbacks {
             }
 
             installedItem != null && installedItem.versionCode > release.versionCode -> {
-                MessageDialog(MessageDialog.Message.ReleaseOlder).show(childFragmentManager)
+                MessageDialog(Message.ReleaseOlder).show(childFragmentManager)
             }
 
             installedItem != null && installedItem.signature != release.signature -> {
-                MessageDialog(MessageDialog.Message.ReleaseSignatureMismatch).show(
-                    childFragmentManager
-                )
+                lifecycleScope.launch {
+                    if (viewModel.shouldIgnoreSignature()) {
+                        queueReleaseInstall(release, installedItem)
+                    } else {
+                        MessageDialog(Message.ReleaseSignatureMismatch).show(childFragmentManager)
+                    }
+                }
             }
 
             else -> {
-                val productRepository =
-                    products.asSequence().filter { it -> it.first.releases.any { it === release } }
-                        .firstOrNull()
-                if (productRepository != null) {
-                    downloadConnection.binder?.enqueue(
-                        viewModel.packageName,
-                        productRepository.first.name,
-                        productRepository.second,
-                        release,
-                        installedItem != null
-                    )
-                }
+                queueReleaseInstall(release, installedItem)
             }
+        }
+    }
+
+    private fun queueReleaseInstall(release: Release, installedItem: InstalledItem?) {
+        val productRepository =
+            products.asSequence().filter { (product, _) ->
+                product.releases.any { it === release }
+            }.firstOrNull()
+        if (productRepository != null) {
+            downloadConnection.binder?.enqueue(
+                viewModel.packageName,
+                productRepository.first.name,
+                productRepository.second,
+                release,
+                installedItem != null
+            )
         }
     }
 
@@ -489,7 +503,7 @@ class AppDetailFragment() : ScreenFragment(), AppDetailAdapter.Callbacks {
 
     override fun onUriClick(uri: Uri, shouldConfirm: Boolean): Boolean {
         return if (shouldConfirm && (uri.scheme == "http" || uri.scheme == "https")) {
-            MessageDialog(MessageDialog.Message.Link(uri)).show(childFragmentManager)
+            MessageDialog(Message.Link(uri)).show(childFragmentManager)
             true
         } else {
             try {

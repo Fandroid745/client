@@ -221,4 +221,23 @@
     <string name="repository_not_found">A következő tároló nem található</string>
     <string name="special_credits">Külön köszönet</string>
     <string name="shizuku_not_installed">A Shizuku nincs telepítve</string>
+    <string name="has_tethered_network">Bizonyos hálózati szolgáltatáshoz kapcsolódik</string>
+    <string name="cannot_open_link">A hivatkozás nem nyitható meg</string>
+    <string name="import_export">Importálás/exportálás</string>
+    <string name="import_settings_title">Beállítások importálása</string>
+    <string name="import_settings_DESC">Beállítások és kedvencek importálása fájlból</string>
+    <string name="export_settings_title">Beállítások exportálása</string>
+    <string name="export_settings_DESC">Beállítások és kedvencek exportálása fájlba</string>
+    <string name="import_repos_title">Tárolók importálása</string>
+    <string name="import_repos_DESC">Az összes tároló importálása fájlból</string>
+    <string name="export_repos_title">Tárolók exportálása</string>
+    <string name="export_repos_DESC">Az összes tároló fájlba exportálása</string>
+    <string name="require_background_access">Háttérbeli hozzáférés igénylése</string>
+    <string name="require_background_access_DESC">A háttérszinkronizálás megfelelő futtatásához háttérbeli hozzáférés szükséges</string>
+    <string name="ignore_signature_summary">Aláírás ellenőrzés figyelmen kívül hagyása az apk telepítésekor, LSPosed felhasználók vagy haladó felhasználók számára</string>
+    <string name="installation_failed">A telepítés meghiúsult</string>
+    <string name="installation_failed_DESC">%s telepítése meghiúsult</string>
+    <string name="uninstalled_application">Eltávolított</string>
+    <string name="uninstalled_application_DESC">%s eltávolításra került</string>
+    <string name="ignore_signature">Aláírás figyelmen kívül hagyása</string>
 </resources>

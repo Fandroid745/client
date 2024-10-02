@@ -16,40 +16,15 @@ import com.looker.core.common.extension.parseDictionary
 import com.looker.core.common.extension.writeDictionary
 import com.looker.core.common.log
 import com.looker.core.datastore.model.SortOrder
-import com.looker.core.model.InstalledItem
-import com.looker.core.model.Product
-import com.looker.core.model.ProductItem
-import com.looker.core.model.Repository
+import com.looker.droidify.model.InstalledItem
+import com.looker.droidify.model.Product
+import com.looker.droidify.model.ProductItem
+import com.looker.droidify.model.Repository
 import com.looker.droidify.BuildConfig
 import com.looker.droidify.utility.serialization.product
 import com.looker.droidify.utility.serialization.productItem
 import com.looker.droidify.utility.serialization.repository
 import com.looker.droidify.utility.serialization.serialize
-import java.io.ByteArrayOutputStream
-import kotlin.collections.List
-import kotlin.collections.Map
-import kotlin.collections.MutableSet
-import kotlin.collections.Set
-import kotlin.collections.any
-import kotlin.collections.asSequence
-import kotlin.collections.component1
-import kotlin.collections.component2
-import kotlin.collections.distinctBy
-import kotlin.collections.filter
-import kotlin.collections.forEach
-import kotlin.collections.isNotEmpty
-import kotlin.collections.joinToString
-import kotlin.collections.listOf
-import kotlin.collections.map
-import kotlin.collections.mapNotNull
-import kotlin.collections.minus
-import kotlin.collections.minusAssign
-import kotlin.collections.mutableMapOf
-import kotlin.collections.mutableSetOf
-import kotlin.collections.orEmpty
-import kotlin.collections.plusAssign
-import kotlin.collections.set
-import kotlin.collections.toSet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.delay
@@ -61,13 +36,18 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
+import kotlin.collections.component1
+import kotlin.collections.component2
+import kotlin.collections.set
 
 object Database {
     fun init(context: Context): Boolean {
         val helper = Helper(context)
         db = helper.writableDatabase
         if (helper.created) {
-            for (repository in Repository.defaultRepositories) {
+            for (repository in Repository.defaultRepositories.sortedBy { it.name }) {
                 RepositoryAdapter.put(repository)
             }
         }
@@ -204,7 +184,7 @@ object Database {
         }
     }
 
-    private class Helper(context: Context) : SQLiteOpenHelper(context, "droidify", null, 1) {
+    private class Helper(context: Context) : SQLiteOpenHelper(context, "droidify", null, 4) {
         var created = false
             private set
         var updated = false
@@ -243,13 +223,13 @@ object Database {
     }
 
     private fun handleTables(db: SQLiteDatabase, recreate: Boolean, vararg tables: Table): Boolean {
-        val shouldRecreate = recreate || tables.any {
+        val shouldRecreate = recreate || tables.any { table ->
             val sql = db.query(
-                "${it.databasePrefix}sqlite_master",
+                "${table.databasePrefix}sqlite_master",
                 columns = arrayOf("sql"),
-                selection = Pair("type = ? AND name = ?", arrayOf("table", it.innerName))
+                selection = Pair("type = ? AND name = ?", arrayOf("table", table.innerName))
             ).use { it.firstOrNull()?.getString(0) }.orEmpty()
-            it.formatCreateTable(it.innerName) != sql
+            table.formatCreateTable(table.innerName) != sql
         }
         return shouldRecreate && run {
             val shouldVacuum = tables.map {
@@ -271,7 +251,7 @@ object Database {
         if (repos.isEmpty()) return
         db.transaction {
             repos.forEach {
-                RepositoryAdapter.put(it)
+                RepositoryAdapter.put(it, database = this)
             }
         }
     }
@@ -311,7 +291,7 @@ object Database {
             columns = arrayOf("name"),
             selection = Pair("type = ?", arrayOf("table"))
         )
-            .use { it.asSequence().mapNotNull { it.getString(0) }.toList() }
+            .use { cursor -> cursor.asSequence().mapNotNull { it.getString(0) }.toList() }
             .filter { !it.startsWith("sqlite_") && !it.startsWith("android_") }
             .toSet() - neededTables.mapNotNull { if (it.memory) null else it.name }.toSet()
         if (tables.isNotEmpty()) {
@@ -414,8 +394,12 @@ object Database {
     }
 
     object RepositoryAdapter {
-        internal fun putWithoutNotification(repository: Repository, shouldReplace: Boolean): Long {
-            return db.insertOrReplace(
+        internal fun putWithoutNotification(
+            repository: Repository,
+            shouldReplace: Boolean,
+            database: SQLiteDatabase
+        ): Long {
+            return database.insertOrReplace(
                 shouldReplace,
                 Schema.Repository.name,
                 ContentValues().apply {
@@ -429,9 +413,9 @@ object Database {
             )
         }
 
-        fun put(repository: Repository): Repository {
+        fun put(repository: Repository, database: SQLiteDatabase = db): Repository {
             val shouldReplace = repository.id >= 0L
-            val newId = putWithoutNotification(repository, shouldReplace)
+            val newId = putWithoutNotification(repository, shouldReplace, database)
             val id = if (shouldReplace) repository.id else newId
             notifyChanged(Subject.Repositories, Subject.Repository(id), Subject.Products)
             return if (newId != repository.id) repository.copy(id = newId) else repository
@@ -448,6 +432,11 @@ object Database {
             }
         }
 
+        fun getStream(id: Long): Flow<Repository?> = flowOf(Unit)
+            .onCompletion { if (it == null) emitAll(flowCollection(Subject.Repositories)) }
+            .map { get(id) }
+            .flowOn(Dispatchers.IO)
+
         fun get(id: Long): Repository? {
             return db.query(
                 Schema.Repository.name,
@@ -455,8 +444,7 @@ object Database {
                     "${Schema.Repository.ROW_ID} = ? AND ${Schema.Repository.ROW_DELETED} == 0",
                     arrayOf(id.toString())
                 )
-            )
-                .use { it.firstOrNull()?.let(::transform) }
+            ).use { it.firstOrNull()?.let(::transform) }
         }
 
         fun getAllStream(): Flow<List<Repository>> = flowOf(Unit)
@@ -469,8 +457,8 @@ object Database {
             .map { getEnabled() }
             .flowOn(Dispatchers.IO)
 
-        private fun getEnabled(): List<Repository> {
-            return db.query(
+        private suspend fun getEnabled(): List<Repository> = withContext(Dispatchers.IO) {
+            db.query(
                 Schema.Repository.name,
                 selection = Pair(
                     "${Schema.Repository.ROW_ENABLED} != 0 AND " +
@@ -504,10 +492,11 @@ object Database {
                     emptyArray()
                 ),
                 signal = null
-            ).use {
-                it.asSequence().associate {
-                    it.getLong(it.getColumnIndex(Schema.Repository.ROW_ID)) to
-                        (it.getInt(it.getColumnIndex(Schema.Repository.ROW_DELETED)) != 0)
+            ).use { parentCursor ->
+                parentCursor.asSequence().associate {
+                    val idIndex = it.getColumnIndexOrThrow(Schema.Repository.ROW_ID)
+                    val isDeletedIndex = it.getColumnIndexOrThrow(Schema.Repository.ROW_DELETED)
+                    it.getLong(idIndex) to (it.getInt(isDeletedIndex) != 0)
                 }
             }
         }
@@ -551,6 +540,16 @@ object Database {
             }
         }
 
+        fun importRepos(list: List<Repository>) {
+            db.transaction {
+                val currentAddresses = getAll().map { it.address }
+                val newRepos = list
+                    .filter { it.address !in currentAddresses }
+                newRepos.forEach { put(it) }
+                removeDuplicates()
+            }
+        }
+
         fun query(signal: CancellationSignal?): Cursor {
             return db.query(
                 Schema.Repository.name,
@@ -561,10 +560,11 @@ object Database {
         }
 
         fun transform(cursor: Cursor): Repository {
-            return cursor.getBlob(cursor.getColumnIndex(Schema.Repository.ROW_DATA))
+            return cursor.getBlob(cursor.getColumnIndexOrThrow(Schema.Repository.ROW_DATA))
                 .jsonParse {
                     it.repository().apply {
-                        this.id = cursor.getLong(cursor.getColumnIndex(Schema.Repository.ROW_ID))
+                        this.id =
+                            cursor.getLong(cursor.getColumnIndexOrThrow(Schema.Repository.ROW_ID))
                     }
                 }
         }
@@ -577,20 +577,26 @@ object Database {
             .map { get(packageName, null) }
             .flowOn(Dispatchers.IO)
 
+        suspend fun getUpdates(): List<ProductItem> = withContext(Dispatchers.IO) {
+            query(
+                installed = true,
+                updates = true,
+                searchQuery = "",
+                section = ProductItem.Section.All,
+                order = SortOrder.NAME,
+                signal = null
+            ).use {
+                it.asSequence()
+                    .map(ProductAdapter::transformItem)
+                    .toList()
+            }
+        }
+
         fun getUpdatesStream(): Flow<List<ProductItem>> = flowOf(Unit)
             .onCompletion { if (it == null) emitAll(flowCollection(Subject.Products)) }
             // Crashes due to immediate retrieval of data?
             .onEach { delay(50) }
-            .map {
-                query(
-                    installed = true,
-                    updates = true,
-                    searchQuery = "",
-                    section = ProductItem.Section.All,
-                    order = SortOrder.NAME,
-                    signal = null
-                ).use { it.asSequence().map(ProductAdapter::transformItem).toList() }
-            }
+            .map { getUpdates() }
             .flowOn(Dispatchers.IO)
 
         fun get(packageName: String, signal: CancellationSignal?): List<Product> {
@@ -606,7 +612,12 @@ object Database {
             ).use { it.asSequence().map(::transform).toList() }
         }
 
-        fun getCount(repositoryId: Long): Int {
+        fun getCountStream(repositoryId: Long): Flow<Int> = flowOf(Unit)
+            .onCompletion { if (it == null) emitAll(flowCollection(Subject.Products)) }
+            .map { getCount(repositoryId) }
+            .flowOn(Dispatchers.IO)
+
+        private fun getCount(repositoryId: Long): Int {
             return db.query(
                 Schema.Product.name,
                 columns = arrayOf("COUNT (*)"),
@@ -614,8 +625,7 @@ object Database {
                     "${Schema.Product.ROW_REPOSITORY_ID} = ?",
                     arrayOf(repositoryId.toString())
                 )
-            )
-                .use { it.firstOrNull()?.getInt(0) ?: 0 }
+            ).use { it.firstOrNull()?.getInt(0) ?: 0 }
         }
 
         fun query(
@@ -707,38 +717,38 @@ object Database {
         }
 
         private fun transform(cursor: Cursor): Product {
-            return cursor.getBlob(cursor.getColumnIndex(Schema.Product.ROW_DATA))
+            return cursor.getBlob(cursor.getColumnIndexOrThrow(Schema.Product.ROW_DATA))
                 .jsonParse {
                     it.product().apply {
                         this.repositoryId = cursor
-                            .getLong(cursor.getColumnIndex(Schema.Product.ROW_REPOSITORY_ID))
+                            .getLong(cursor.getColumnIndexOrThrow(Schema.Product.ROW_REPOSITORY_ID))
                         this.description = cursor
-                            .getString(cursor.getColumnIndex(Schema.Product.ROW_DESCRIPTION))
+                            .getString(cursor.getColumnIndexOrThrow(Schema.Product.ROW_DESCRIPTION))
                     }
                 }
         }
 
         fun transformItem(cursor: Cursor): ProductItem {
-            return cursor.getBlob(cursor.getColumnIndex(Schema.Product.ROW_DATA_ITEM))
+            return cursor.getBlob(cursor.getColumnIndexOrThrow(Schema.Product.ROW_DATA_ITEM))
                 .jsonParse {
                     it.productItem().apply {
                         this.repositoryId = cursor
-                            .getLong(cursor.getColumnIndex(Schema.Product.ROW_REPOSITORY_ID))
+                            .getLong(cursor.getColumnIndexOrThrow(Schema.Product.ROW_REPOSITORY_ID))
                         this.packageName = cursor
-                            .getString(cursor.getColumnIndex(Schema.Product.ROW_PACKAGE_NAME))
+                            .getString(cursor.getColumnIndexOrThrow(Schema.Product.ROW_PACKAGE_NAME))
                         this.name = cursor
-                            .getString(cursor.getColumnIndex(Schema.Product.ROW_NAME))
+                            .getString(cursor.getColumnIndexOrThrow(Schema.Product.ROW_NAME))
                         this.summary = cursor
-                            .getString(cursor.getColumnIndex(Schema.Product.ROW_SUMMARY))
+                            .getString(cursor.getColumnIndexOrThrow(Schema.Product.ROW_SUMMARY))
                         this.installedVersion = cursor
-                            .getString(cursor.getColumnIndex(Schema.Installed.ROW_VERSION))
+                            .getString(cursor.getColumnIndexOrThrow(Schema.Installed.ROW_VERSION))
                             .orEmpty()
                         this.compatible = cursor
-                            .getInt(cursor.getColumnIndex(Schema.Product.ROW_COMPATIBLE)) != 0
+                            .getInt(cursor.getColumnIndexOrThrow(Schema.Product.ROW_COMPATIBLE)) != 0
                         this.canUpdate = cursor
-                            .getInt(cursor.getColumnIndex(Schema.Synthetic.ROW_CAN_UPDATE)) != 0
+                            .getInt(cursor.getColumnIndexOrThrow(Schema.Synthetic.ROW_CAN_UPDATE)) != 0
                         this.matchRank = cursor
-                            .getInt(cursor.getColumnIndex(Schema.Synthetic.ROW_MATCH_RANK))
+                            .getInt(cursor.getColumnIndexOrThrow(Schema.Synthetic.ROW_MATCH_RANK))
                     }
                 }
         }
@@ -751,7 +761,7 @@ object Database {
             .map { getAll() }
             .flowOn(Dispatchers.IO)
 
-        private fun getAll(): Set<String> {
+        private suspend fun getAll(): Set<String> = withContext(Dispatchers.IO) {
             val builder = QueryBuilder()
 
             builder += """SELECT DISTINCT category.${Schema.Category.ROW_NAME}
@@ -761,9 +771,10 @@ object Database {
         WHERE repository.${Schema.Repository.ROW_ENABLED} != 0 AND
         repository.${Schema.Repository.ROW_DELETED} == 0"""
 
-            return builder.query(db, null).use {
-                it.asSequence()
-                    .map { it.getString(it.getColumnIndex(Schema.Category.ROW_NAME)) }.toSet()
+            builder.query(db, null).use { cursor ->
+                cursor.asSequence().map {
+                    it.getString(it.getColumnIndexOrThrow(Schema.Category.ROW_NAME))
+                }.toSet()
             }
         }
     }
@@ -827,10 +838,10 @@ object Database {
 
         private fun transform(cursor: Cursor): InstalledItem {
             return InstalledItem(
-                cursor.getString(cursor.getColumnIndex(Schema.Installed.ROW_PACKAGE_NAME)),
-                cursor.getString(cursor.getColumnIndex(Schema.Installed.ROW_VERSION)),
-                cursor.getLong(cursor.getColumnIndex(Schema.Installed.ROW_VERSION_CODE)),
-                cursor.getString(cursor.getColumnIndex(Schema.Installed.ROW_SIGNATURE))
+                cursor.getString(cursor.getColumnIndexOrThrow(Schema.Installed.ROW_PACKAGE_NAME)),
+                cursor.getString(cursor.getColumnIndexOrThrow(Schema.Installed.ROW_VERSION)),
+                cursor.getLong(cursor.getColumnIndexOrThrow(Schema.Installed.ROW_VERSION_CODE)),
+                cursor.getString(cursor.getColumnIndexOrThrow(Schema.Installed.ROW_SIGNATURE))
             )
         }
     }
@@ -939,7 +950,7 @@ object Database {
                         "INSERT INTO ${Schema.Category.name} SELECT * " +
                             "FROM ${Schema.Category.temporaryName}"
                     )
-                    RepositoryAdapter.putWithoutNotification(repository, true)
+                    RepositoryAdapter.putWithoutNotification(repository, true, db)
                     db.execSQL("DROP TABLE IF EXISTS ${Schema.Product.temporaryName}")
                     db.execSQL("DROP TABLE IF EXISTS ${Schema.Category.temporaryName}")
                 }

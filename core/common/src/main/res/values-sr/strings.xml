@@ -224,4 +224,23 @@
     <string name="root_permission_description">Дозволите root дозволу за тихе инсталације</string>
     <string name="compiled_for_debugging">Састављено за отклањање грешака</string>
     <string name="unknown_FORMAT">Непознато: %s</string>
+    <string name="import_settings_title">Увоз подешавања</string>
+    <string name="import_export">Увоз/Извоз</string>
+    <string name="import_settings_DESC">Увезите подешавања и омиљене из фајла</string>
+    <string name="export_settings_title">Извоз подешавања</string>
+    <string name="export_repos_DESC">Извезите све репозиторијуме у фајл</string>
+    <string name="import_repos_title">Увоз репозиторијума</string>
+    <string name="export_settings_DESC">Извезите подешавања и омиљене у фајл</string>
+    <string name="export_repos_title">Извоз репозиторијума</string>
+    <string name="import_repos_DESC">Увезите све репозиторијуме из фајла</string>
+    <string name="cannot_open_link">Није могуће отворити линк</string>
+    <string name="has_tethered_network">Везано за одређену мрежну услугу</string>
+    <string name="require_background_access_DESC">Позадински приступ је неопходан за правилно покретање позадинске синхронизације</string>
+    <string name="require_background_access">Захтева позадински приступ</string>
+    <string name="uninstalled_application">Деинсталирано</string>
+    <string name="uninstalled_application_DESC">%s је деинсталиран</string>
+    <string name="installation_failed">Инсталација није успела</string>
+    <string name="installation_failed_DESC">Није успела инсталација %s</string>
+    <string name="ignore_signature">Игнориши потпис</string>
+    <string name="ignore_signature_summary">Игноришите верификацију потписа када инсталирате apk, за LSPosed кориснике или напредне кориснике</string>
 </resources>

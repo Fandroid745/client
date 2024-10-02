@@ -5,7 +5,7 @@ import com.fasterxml.jackson.core.JsonParser
 import com.looker.core.common.extension.collectNotNullStrings
 import com.looker.core.common.extension.forEachKey
 import com.looker.core.common.extension.writeArray
-import com.looker.core.model.Repository
+import com.looker.droidify.model.Repository
 
 fun Repository.serialize(generator: JsonGenerator) {
     generator.writeNumberField("serialVersion", 1)
@@ -25,7 +25,7 @@ fun Repository.serialize(generator: JsonGenerator) {
 }
 
 fun JsonParser.repository(): Repository {
-    var id = 0L
+    var id = -1L
     var address = ""
     var mirrors = emptyList<String>()
     var name = ""

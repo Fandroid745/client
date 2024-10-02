@@ -22,7 +22,9 @@ include(
 	":core:data",
 	":core:database",
 	":core:datastore",
-	":core:model",
+    ":core:di",
+    ":core:domain",
 	":core:network",
-	":installer"
+	":installer",
+    ":sync:fdroid",
 )

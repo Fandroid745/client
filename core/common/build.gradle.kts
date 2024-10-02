@@ -10,17 +10,6 @@ android {
     defaultConfig {
         vectorDrawables.useSupportLibrary = true
     }
-
-    buildTypes {
-        release {
-            isMinifyEnabled = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
-        }
-        create("alpha") {
-            initWith(getByName("debug"))
-            isMinifyEnabled = true
-        }
-    }
     buildFeatures {
         buildConfig = true
     }
@@ -29,10 +18,10 @@ android {
 dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.android.material)
-    implementation(libs.androidx.activity.ktx)
+    implementation(libs.androidx.activity)
     implementation(libs.androidx.fragment.ktx)
     implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.lifecycle.viewModel.ktx)
+    implementation(libs.androidx.lifecycle.viewModel)
     implementation(libs.androidx.recyclerview)
     implementation(libs.coil.kt)
     implementation(libs.jackson.core)
@@ -52,7 +41,7 @@ task("detectAndroidLocals") {
             langsList.add(languageCode)
         }
     }
-    val langsListString = "{${langsList.joinToString(",") { "\"${it}\"" }}}"
+    val langsListString = "{${langsList.sorted().joinToString(",") { "\"${it}\"" }}}"
     android.defaultConfig.buildConfigField("String[]", "DETECTED_LOCALES", langsListString)
 }
 tasks.preBuild.dependsOn("detectAndroidLocals")
