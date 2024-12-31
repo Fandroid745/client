@@ -22,6 +22,7 @@ import com.looker.core.common.extension.getColorFromAttr
 import com.looker.core.common.extension.notificationManager
 import com.looker.core.common.extension.startSelf
 import com.looker.core.common.extension.stopForegroundCompat
+import com.looker.core.common.log
 import com.looker.core.common.result.Result
 import com.looker.core.common.sdkAbove
 import com.looker.core.datastore.SettingsRepository
@@ -43,6 +44,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -67,13 +69,12 @@ class SyncService : ConnectionService<SyncService.Binder>() {
         private const val ACTION_CANCEL = "${BuildConfig.APPLICATION_ID}.intent.action.CANCEL"
 
         private val syncState = MutableSharedFlow<State>()
-        private val onFinishState = MutableSharedFlow<Unit>()
     }
 
     @Inject
     lateinit var settingsRepository: SettingsRepository
 
-    private sealed class State(val name: String) {
+    sealed class State(val name: String) {
         data class Connecting(val appName: String) : State(appName)
         data class Syncing(
             val appName: String,
@@ -81,6 +82,8 @@ class SyncService : ConnectionService<SyncService.Binder>() {
             val read: DataSize,
             val total: DataSize?
         ) : State(appName)
+
+        data object Finish : State("")
     }
 
     private class Task(val repositoryId: Long, val manual: Boolean)
@@ -106,8 +109,8 @@ class SyncService : ConnectionService<SyncService.Binder>() {
 
     inner class Binder : android.os.Binder() {
 
-        val onFinish: SharedFlow<Unit>
-            get() = onFinishState.asSharedFlow()
+        val state: SharedFlow<State>
+            get() = syncState.asSharedFlow()
 
         private fun sync(ids: List<Long>, request: SyncRequest) {
             val cancelledTask =
@@ -214,6 +217,12 @@ class SyncService : ConnectionService<SyncService.Binder>() {
                     publishForegroundState(false, it)
                 }
         }
+    }
+
+    override fun onTimeout(startId: Int) {
+        super.onTimeout(startId)
+        onDestroy()
+        stopSelf()
     }
 
     override fun onDestroy() {
@@ -357,6 +366,8 @@ class SyncService : ConnectionService<SyncService.Binder>() {
                                     }
                                 }
                             }
+
+                            is State.Finish -> {}
                         }::class
                     }.build()
                 )
@@ -383,7 +394,7 @@ class SyncService : ConnectionService<SyncService.Binder>() {
             }
             return
         }
-        val task = tasks.removeFirst()
+        val task = tasks.removeAt(0)
         val repository = Database.RepositoryAdapter.get(task.repositoryId)
         if (repository == null || !repository.enabled) handleNextTask(hasUpdates)
         val lastStarted = started
@@ -461,8 +472,8 @@ class SyncService : ConnectionService<SyncService.Binder>() {
         autoUpdate: Boolean
     ) {
         try {
-            if (!hasUpdates || !notifyUpdates) {
-                onFinishState.emit(Unit)
+            if (!hasUpdates) {
+                syncState.emit(State.Finish)
                 val needStop = started == Started.MANUAL
                 started = Started.NO
                 if (needStop) stopForegroundCompat()
@@ -471,10 +482,14 @@ class SyncService : ConnectionService<SyncService.Binder>() {
             val blocked = updateNotificationBlockerFragment?.get()?.isAdded == true
             val updates = Database.ProductAdapter.getUpdates()
             if (!blocked && updates.isNotEmpty()) {
-                displayUpdatesNotification(updates)
+                if (notifyUpdates) displayUpdatesNotification(updates)
                 if (autoUpdate) updateAllAppsInternal()
             }
-            handleUpdates(hasUpdates = false, notifyUpdates = true, autoUpdate = autoUpdate)
+            handleUpdates(
+                hasUpdates = false,
+                notifyUpdates = notifyUpdates,
+                autoUpdate = autoUpdate
+            )
         } finally {
             withContext(NonCancellable) {
                 lock.withLock { currentTask = null }
@@ -484,6 +499,7 @@ class SyncService : ConnectionService<SyncService.Binder>() {
     }
 
     private suspend fun updateAllAppsInternal() {
+        log("Check Running", "Syncing")
         Database.ProductAdapter
             .getUpdates()
             // Update Droid-ify the last
@@ -506,7 +522,6 @@ class SyncService : ConnectionService<SyncService.Binder>() {
     }
 
     private fun displayUpdatesNotification(productItems: List<ProductItem>) {
-        fun <T> T.applyHack(callback: T.() -> Unit): T = apply(callback)
         notificationManager?.notify(
             Constants.NOTIFICATION_ID_UPDATES,
             NotificationCompat
@@ -534,7 +549,7 @@ class SyncService : ConnectionService<SyncService.Binder>() {
                     )
                 )
                 .setStyle(
-                    NotificationCompat.InboxStyle().applyHack {
+                    NotificationCompat.InboxStyle().also {
                         for (productItem in productItems.take(MAX_UPDATE_NOTIFICATION)) {
                             val builder = SpannableStringBuilder(productItem.name)
                             builder.setSpan(
@@ -544,7 +559,7 @@ class SyncService : ConnectionService<SyncService.Binder>() {
                                 SpannableStringBuilder.SPAN_EXCLUSIVE_EXCLUSIVE
                             )
                             builder.append(' ').append(productItem.version)
-                            addLine(builder)
+                            it.addLine(builder)
                         }
                         if (productItems.size > MAX_UPDATE_NOTIFICATION) {
                             val summary =
@@ -552,7 +567,11 @@ class SyncService : ConnectionService<SyncService.Binder>() {
                                     stringRes.plus_more_FORMAT,
                                     productItems.size - MAX_UPDATE_NOTIFICATION
                                 )
-                            if (SdkCheck.isNougat) addLine(summary) else setSummaryText(summary)
+                            if (SdkCheck.isNougat) {
+                                it.addLine(summary)
+                            } else {
+                                it.setSummaryText(summary)
+                            }
                         }
                     }
                 )
@@ -567,7 +586,7 @@ class SyncService : ConnectionService<SyncService.Binder>() {
         private val syncConnection =
             Connection(SyncService::class.java, onBind = { connection, binder ->
                 jobScope.launch {
-                    binder.onFinish.collect {
+                    binder.state.filter { it is State.Finish }.collect {
                         val params = syncParams
                         if (params != null) {
                             syncParams = null

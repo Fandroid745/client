@@ -11,12 +11,14 @@ import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
 import android.system.Os
-import com.looker.core.common.SdkCheck
+import com.looker.core.common.extension.getPackageInfoCompat
 import com.looker.core.common.sdkAbove
 import java.io.File
 import java.util.UUID
 import kotlin.concurrent.thread
+import kotlin.math.min
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
 
 object Cache {
@@ -35,7 +37,9 @@ object Cache {
     }
 
     private fun applyOrMode(file: File, mode: Int) {
+        // Only take first 12 significant digits
         val oldMode = Os.stat(file.path).st_mode and 0b111111111111
+        // Merge old permission and new permission
         val newMode = oldMode or mode
         if (newMode != oldMode) {
             Os.chmod(file.path, newMode)
@@ -47,6 +51,11 @@ object Cache {
         val filePath = file.path
         filePath.startsWith(dirPath) || throw RuntimeException()
         return filePath.substring(dirPath.length)
+    }
+
+    fun getEmptySpace(context: Context): Long {
+        val dir = context.cacheDir
+        return min(dir.usableSpace, dir.freeSpace)
     }
 
     fun getImagesDir(context: Context): File {
@@ -78,23 +87,10 @@ object Cache {
 
     fun getReleaseUri(context: Context, cacheFileName: String): Uri {
         val file = getReleaseFile(context, cacheFileName)
-        val packageInfo =
-            try {
-                if (SdkCheck.isTiramisu) {
-                    context.packageManager.getPackageInfo(
-                        context.packageName,
-                        PackageManager.PackageInfoFlags.of(PackageManager.GET_PROVIDERS.toLong())
-                    )
-                } else {
-                    @Suppress("DEPRECATION")
-                    context.packageManager.getPackageInfo(
-                        context.packageName,
-                        PackageManager.GET_PROVIDERS
-                    )
-                }
-            } catch (e: Exception) {
-                null
-            }
+        val packageInfo = context.packageManager.getPackageInfoCompat(
+            packageName = context.packageName,
+            signatureFlag = PackageManager.GET_PROVIDERS
+        )
         val authority =
             packageInfo?.providers?.find { it.name == Provider::class.java.name }!!.authority
         return Uri.Builder()
@@ -112,10 +108,10 @@ object Cache {
         thread {
             cleanup(
                 context,
-                Pair(IMAGES_DIR, Duration.INFINITE),
+                Pair(IMAGES_DIR, 7.days),
                 Pair(INDEX_DIR, Duration.INFINITE),
-                Pair(PARTIAL_DIR, 24.hours),
-                Pair(RELEASE_DIR, 24.hours),
+                Pair(PARTIAL_DIR, 1.days),
+                Pair(RELEASE_DIR, 1.days),
                 Pair(TEMP_DIR, 1.hours),
             )
         }

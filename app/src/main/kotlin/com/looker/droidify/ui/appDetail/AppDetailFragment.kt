@@ -22,19 +22,20 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.SimpleItemAnimator
 import coil.load
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.looker.core.common.cache.Cache
 import com.looker.core.common.extension.getLauncherActivities
 import com.looker.core.common.extension.getMutatedIcon
 import com.looker.core.common.extension.isFirstItemVisible
 import com.looker.core.common.extension.isSystemApplication
 import com.looker.core.common.extension.systemBarsPadding
 import com.looker.core.common.extension.updateAsMutable
+import com.looker.droidify.content.ProductPreferences
 import com.looker.droidify.model.InstalledItem
 import com.looker.droidify.model.Product
 import com.looker.droidify.model.ProductPreference
 import com.looker.droidify.model.Release
 import com.looker.droidify.model.Repository
 import com.looker.droidify.model.findSuggested
-import com.looker.droidify.content.ProductPreferences
 import com.looker.droidify.service.Connection
 import com.looker.droidify.service.DownloadService
 import com.looker.droidify.ui.Message
@@ -42,7 +43,6 @@ import com.looker.droidify.ui.MessageDialog
 import com.looker.droidify.ui.ScreenFragment
 import com.looker.droidify.ui.appDetail.AppDetailViewModel.Companion.ARG_PACKAGE_NAME
 import com.looker.droidify.ui.appDetail.AppDetailViewModel.Companion.ARG_REPO_ADDRESS
-import com.looker.droidify.utility.extension.ImageUtils.url
 import com.looker.droidify.utility.extension.screenActivity
 import com.looker.droidify.utility.extension.startUpdate
 import com.looker.installer.model.InstallState
@@ -341,12 +341,17 @@ class AppDetailFragment() : ScreenFragment(), AppDetailAdapter.Callbacks {
     override fun onActionClick(action: AppDetailAdapter.Action) {
         when (action) {
             AppDetailAdapter.Action.INSTALL,
-            AppDetailAdapter.Action.UPDATE
-            -> downloadConnection.startUpdate(
-                viewModel.packageName,
-                installed?.installedItem,
-                products
-            )
+            AppDetailAdapter.Action.UPDATE -> {
+                if (Cache.getEmptySpace(requireContext()) < products.first().first.releases.first().size) {
+                    MessageDialog(Message.InsufficientStorage).show(childFragmentManager)
+                    return
+                }
+                downloadConnection.startUpdate(
+                    viewModel.packageName,
+                    installed?.installedItem,
+                    products
+                )
+            }
 
             AppDetailAdapter.Action.LAUNCH -> {
                 val launcherActivities = installed?.launcherActivities.orEmpty()
@@ -442,7 +447,6 @@ class AppDetailFragment() : ScreenFragment(), AppDetailAdapter.Callbacks {
             .Builder(context, screenshots) { view, current ->
                 view.load(current.url(product.second, viewModel.packageName))
             }
-            .withTransitionFrom(parentView)
             .withStartPosition(position)
             .show()
     }
@@ -459,6 +463,10 @@ class AppDetailFragment() : ScreenFragment(), AppDetailAdapter.Callbacks {
                         release.maxSdkVersion
                     )
                 ).show(childFragmentManager)
+            }
+
+            Cache.getEmptySpace(requireContext()) < release.size -> {
+                MessageDialog(Message.InsufficientStorage).show(childFragmentManager)
             }
 
             installedItem != null && installedItem.versionCode > release.versionCode -> {

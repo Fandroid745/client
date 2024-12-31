@@ -4,13 +4,10 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.activity.OnBackPressedCallback
 import androidx.fragment.app.Fragment
 import com.google.android.material.appbar.MaterialToolbar
 import com.looker.droidify.databinding.FragmentBinding
 
-
-// TODO: When clicking on install notification app crashes
 open class ScreenFragment : Fragment() {
     private var _fragmentBinding: FragmentBinding? = null
     val fragmentBinding get() = _fragmentBinding!!

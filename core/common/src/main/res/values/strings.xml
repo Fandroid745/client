@@ -98,6 +98,8 @@
     <string name="install">Install</string>
     <string name="install_types">Installation Types</string>
     <string name="installer">Installer</string>
+    <string name="insufficient_storage">Insufficient Space</string>
+    <string name="insufficient_storage_DESC">There is not enough free space on the device to install this application. Try clearing some space</string>
     <string name="legacy_installer">Legacy Installer</string>
     <string name="session_installer">Session Installer</string>
     <string name="root_installer">Root Installer</string>
@@ -218,7 +220,7 @@
     <string name="unstable_updates">Unstable updates</string>
     <string name="unstable_updates_summary">Suggest installing unstable versions</string>
     <string name="ignore_signature">Ignore Signature</string>
-    <string name="ignore_signature_summary">Ignore signature verification when installing apk, for LSPosed users or advanced users</string>
+    <string name="ignore_signature_summary">*Warning* Ignore signature verification when installing apk, for LSPosed users or advanced users</string>
     <string name="unverified">Unverified</string>
     <string name="update">Update</string>
     <string name="updates">Updates</string>

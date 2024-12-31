@@ -9,6 +9,7 @@ android {
     namespace = "com.looker.droidify"
     defaultConfig {
         vectorDrawables.useSupportLibrary = true
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     androidResources {
@@ -77,9 +78,10 @@ android {
 
 dependencies {
 
+    implementation(libs.monitor)
     modules(
         Modules.coreDomain,
-        Modules.coreData,
+//        Modules.coreData,
         Modules.coreCommon,
         Modules.coreNetwork,
         Modules.coreDatastore,
@@ -87,19 +89,22 @@ dependencies {
         Modules.installer,
     )
 
-    implementation(libs.android.material)
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.activity)
-    implementation(libs.androidx.appcompat)
-    implementation(libs.androidx.fragment.ktx)
-    implementation(libs.androidx.lifecycle.viewModel)
-    implementation(libs.androidx.recyclerview)
-    implementation(libs.androidx.sqlite.ktx)
+    implementation(libs.material)
+    implementation(libs.core.ktx)
+    implementation(libs.activity)
+    implementation(libs.appcompat)
+    implementation(libs.fragment.ktx)
+    implementation(libs.lifecycle.viewModel)
+    implementation(libs.recyclerview)
+    implementation(libs.sqlite.ktx)
     implementation(libs.coil.kt)
-    implementation(libs.kotlinx.datetime)
-    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.datetime)
+    implementation(libs.coroutines.android)
     implementation(libs.jackson.core)
     implementation(libs.image.viewer)
+
+    androidTestImplementation(platform(libs.junit.bom))
+    androidTestImplementation(libs.bundles.test.android)
 
 //    debugImplementation(libs.leakcanary)
 }

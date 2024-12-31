@@ -10,9 +10,8 @@ import org.gradle.kotlin.dsl.configure
 import org.gradle.kotlin.dsl.dependencies
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinAndroidProjectExtension
+import org.jetbrains.kotlin.gradle.dsl.KotlinBaseExtension
 import org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension
-import org.jetbrains.kotlin.gradle.dsl.KotlinTopLevelExtension
-import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
 
 // Taken from NIA sample app by Google
 
@@ -42,7 +41,7 @@ internal fun Project.configureKotlinAndroid(
     configureKotlin<KotlinAndroidProjectExtension>()
 
     dependencies {
-        add("coreLibraryDesugaring", libs.getLibrary("android.desugarJdkLibs"))
+        add("coreLibraryDesugaring", libs.getLibrary("desugaring"))
     }
 }
 
@@ -60,14 +59,12 @@ internal fun Project.configureKotlinJvm() {
 /**
  * Configure base Kotlin options
  */
-private inline fun <reified T : KotlinTopLevelExtension> Project.configureKotlin() = configure<T> {
+private inline fun <reified T : KotlinBaseExtension> Project.configureKotlin() = configure<T> {
     when (this) {
         is KotlinAndroidProjectExtension -> compilerOptions
         is KotlinJvmProjectExtension -> compilerOptions
         else -> TODO("Unsupported project extension $this ${T::class}")
     }.apply {
-        // Use when hilt supports ksp2
-//        apiVersion = KotlinVersion.KOTLIN_2_0
         jvmTarget = JvmTarget.JVM_11
         freeCompilerArgs = listOf(
             "-opt-in=kotlin.RequiresOptIn",

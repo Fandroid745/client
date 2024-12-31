@@ -20,13 +20,6 @@ class AndroidLibraryPlugin : Plugin<Project> {
                 configureKotlinAndroid(this)
                 defaultConfig.targetSdk = DefaultConfig.compileSdk
                 buildTypes {
-                    release {
-                        isMinifyEnabled = true
-                        proguardFiles(
-                            getDefaultProguardFile("proguard-android-optimize.txt"),
-                            "${rootDir.path}/app/proguard.pro"
-                        )
-                    }
                     create("alpha") {
                         initWith(getByName("debug"))
                         isMinifyEnabled = false
@@ -41,7 +34,6 @@ class AndroidLibraryPlugin : Plugin<Project> {
             }
             dependencies {
                 add("implementation", kotlin2("stdlib", libs))
-                add("implementation", kotlin2("reflect", libs))
             }
         }
     }
